@@ -1,0 +1,18 @@
+{
+  "name": "couple-savings-tracker",
+  "version": "1.0.0",
+  "description": "Joint Couple Savings & Loan Tracker with Real-Time Calendar (10k RWF monthly rule)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "savings",
+    "couple-budget",
+    "rwf",
+    "loan-tracker",
+    "real-time-calendar"
+  ],
+  "author": "",
+  "license": "MIT"
+}

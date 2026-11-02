@@ -1,0 +1,21 @@
+{
+  "settings": {
+    "partner1Name": "Partner 1",
+    "partner2Name": "Partner 2",
+    "monthlyTarget": 10000,
+    "currency": "RWF",
+    "accountName": "Joint Savings Account"
+  },
+  "transactions": [
+    {
+      "id": "seed_1",
+      "type": "deposit",
+      "partner": "partner1",
+      "amount": 10000,
+      "date": "2026-11-02T07:22:23.058Z",
+      "monthKey": "2026-11",
+      "note": "Monthly deposit for November 2026"
+    }
+  ],
+  "loans": []
+}

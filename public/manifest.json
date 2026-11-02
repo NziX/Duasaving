@@ -1,0 +1,17 @@
+{
+  "name": "DuoSave - Couple Shared Bank & Loans",
+  "short_name": "DuoSave",
+  "description": "Shared couple savings and loan tracker with 10k RWF monthly rule",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

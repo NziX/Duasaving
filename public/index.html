@@ -1,0 +1,2306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DuoSave RWF - Couple Shared Bank & Loan Tracker</title>
+  <!-- Mobile & PWA meta tags -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <meta name="theme-color" content="#059669">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="DuoSave">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .pulse-ring {
+      animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- TOP NAVIGATION & REAL-TIME CLOCK -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Brand & Title -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 id="appHeaderTitle" class="text-lg font-bold text-slate-900 tracking-tight leading-tight">DuoSave Joint Account</h1>
+            <span class="bg-emerald-100 text-emerald-800 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-emerald-200">10k RWF/mo Rule</span>
+          </div>
+          <p class="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+            <span id="headerPartner1Name" class="text-blue-600 font-semibold">Partner 1</span> &amp; 
+            <span id="headerPartner2Name" class="text-pink-600 font-semibold">Partner 2</span>
+            <span class="text-slate-300">•</span>
+            <span class="text-slate-500 text-[11px]">Full Historical Control</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Real-Time Calendar Clock & Live Indicator -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center bg-slate-100/80 px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-inner">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-ring mr-2.5"></div>
+          <div class="text-right">
+            <div id="liveClockDate" class="text-xs font-semibold text-slate-700">Loading date...</div>
+            <div id="liveClockTime" class="text-xs font-mono font-bold text-emerald-600">--:--:--</div>
+          </div>
+        </div>
+
+        <!-- Action / Settings button -->
+        <button onclick="openSettingsModal()" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition" title="Account Settings">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1 w-full">
+
+    <!-- TOP DASHBOARD STATS: 4 KEY CARDS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- 1. Total Current Bank Balance -->
+      <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden flex flex-col justify-between">
+        <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div>
+          <div class="flex items-center justify-between text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">
+            <span>Current Bank Balance</span>
+            <span class="p-1.5 bg-slate-800 rounded-lg text-emerald-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+            </span>
+          </div>
+          <div id="statTotalBalance" class="text-3xl font-extrabold tracking-tight text-white mb-1">0 RWF</div>
+          <p class="text-xs text-slate-400">Available joint cash in account</p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs">
+          <span class="text-slate-400">All-Time Deposits:</span>
+          <span id="statGrossDeposits" class="font-semibold text-emerald-400">0 RWF</span>
+        </div>
+      </div>
+
+      <!-- 2. Partner 1 Card -->
+      <div class="bg-white rounded-2xl p-5 border border-blue-100 shadow-xs relative overflow-hidden flex flex-col justify-between hover:border-blue-300 transition">
+        <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span id="statP1NameTitle" class="text-xs font-bold uppercase tracking-wider text-blue-700">Partner 1</span>
+            <span id="statP1MonthBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Pending</span>
+          </div>
+          <div id="statP1TotalDeposited" class="text-2xl font-bold text-slate-800">0 RWF</div>
+          <p class="text-xs text-slate-500">Total savings contributed</p>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-100 space-y-1 text-xs">
+          <div class="flex justify-between items-center text-slate-600">
+            <span>Active Loan:</span>
+            <span id="statP1LoanOwed" class="font-semibold text-rose-600">0 RWF</span>
+          </div>
+          <div class="flex justify-between items-center text-slate-600">
+            <span>Net Share:</span>
+            <span id="statP1NetShare" class="font-bold text-blue-600">0 RWF</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Partner 2 Card -->
+      <div class="bg-white rounded-2xl p-5 border border-pink-100 shadow-xs relative overflow-hidden flex flex-col justify-between hover:border-pink-300 transition">
+        <div class="absolute top-0 left-0 w-1.5 h-full bg-pink-500"></div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span id="statP2NameTitle" class="text-xs font-bold uppercase tracking-wider text-pink-700">Partner 2</span>
+            <span id="statP2MonthBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Pending</span>
+          </div>
+          <div id="statP2TotalDeposited" class="text-2xl font-bold text-slate-800">0 RWF</div>
+          <p class="text-xs text-slate-500">Total savings contributed</p>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-100 space-y-1 text-xs">
+          <div class="flex justify-between items-center text-slate-600">
+            <span>Active Loan:</span>
+            <span id="statP2LoanOwed" class="font-semibold text-rose-600">0 RWF</span>
+          </div>
+          <div class="flex justify-between items-center text-slate-600">
+            <span>Net Share:</span>
+            <span id="statP2NetShare" class="font-bold text-pink-600">0 RWF</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Active Loans Card -->
+      <div class="bg-white rounded-2xl p-5 border border-amber-100 shadow-xs relative overflow-hidden flex flex-col justify-between hover:border-amber-300 transition">
+        <div class="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-700">Total Active Loans</span>
+            <span class="p-1.5 bg-amber-50 rounded-lg text-amber-600">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            </span>
+          </div>
+          <div id="statTotalLoansOwed" class="text-2xl font-bold text-slate-800">0 RWF</div>
+          <p class="text-xs text-slate-500">Money currently borrowed</p>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+          <span class="text-slate-500">Active Borrowers:</span>
+          <span id="statBorrowerSummary" class="font-medium text-slate-700">None</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- QUICK ACTIONS BAR -->
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div class="flex items-center space-x-2 text-sm text-slate-600 font-medium pl-1">
+        <span>⚡ Quick Actions:</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        
+        <!-- NEW: Dedicated Past Savings Backfill Button -->
+        <button onclick="openHistoricalBackfillModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold text-xs rounded-xl border border-indigo-200 transition shadow-2xs">
+          <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          📜 Backfill Past Savings
+        </button>
+
+        <button onclick="openDepositModal('partner1')" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-xs rounded-xl border border-blue-200 transition shadow-2xs">
+          <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Deposit 10k (<span id="btnP1Label">Partner 1</span>)
+        </button>
+        <button onclick="openDepositModal('partner2')" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-pink-50 text-pink-700 hover:bg-pink-100 font-semibold text-xs rounded-xl border border-pink-200 transition shadow-2xs">
+          <svg class="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Deposit 10k (<span id="btnP2Label">Partner 2</span>)
+        </button>
+        <button onclick="openLoanModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-xs rounded-xl border border-amber-200 transition shadow-2xs">
+          <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+          Record Past/Current Loan
+        </button>
+        <button onclick="openRepayModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs rounded-xl border border-emerald-200 transition shadow-2xs">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          Repay Loan
+        </button>
+      </div>
+    </div>
+
+    <!-- MONTHLY SAVINGS STATUS CARD (10k RWF EACH RULE) -->
+    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-100">
+        <div>
+          <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <span>📅 Monthly Savings Tracker</span>
+            <span id="currentMonthYearLabel" class="text-emerald-700 bg-emerald-50 text-xs px-2.5 py-0.5 rounded-full border border-emerald-200 font-semibold">November 2026</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Target: 10,000 RWF per person = 20,000 RWF combined each month</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-500 font-medium">Browse Any Month / Past Year:</label>
+          <input type="month" id="selectedMonthPicker" onchange="onMonthPickerChange(this.value)" class="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-emerald-500">
+        </div>
+      </div>
+
+      <!-- Month Progress Bar -->
+      <div class="mb-5">
+        <div class="flex justify-between items-center text-xs mb-1.5">
+          <span class="text-slate-600 font-medium">Monthly Target Progress: <strong id="monthProgressText" class="text-slate-800">0 / 20,000 RWF</strong></span>
+          <span id="monthProgressPercent" class="font-bold text-emerald-600">0%</span>
+        </div>
+        <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
+          <div id="monthProgressBar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Two Partner Monthly Status Tiles -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Partner 1 Status -->
+        <div id="p1StatusContainer" class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between transition">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span id="p1CardName" class="text-sm font-bold text-blue-700">Partner 1</span>
+              <span id="p1StatusBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700">⏳ Pending (10,000 RWF)</span>
+            </div>
+            <div id="p1TimestampInfo" class="text-xs text-slate-500 leading-relaxed">
+              No deposit recorded yet for this month.
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between">
+            <span class="text-xs text-slate-500 font-medium">Target: 10,000 RWF</span>
+            <button id="p1QuickPayBtn" onclick="openDepositModal('partner1')" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-lg transition shadow-xs">
+              + Add Deposit
+            </button>
+          </div>
+        </div>
+
+        <!-- Partner 2 Status -->
+        <div id="p2StatusContainer" class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between transition">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span id="p2CardName" class="text-sm font-bold text-pink-700">Partner 2</span>
+              <span id="p2StatusBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700">⏳ Pending (10,000 RWF)</span>
+            </div>
+            <div id="p2TimestampInfo" class="text-xs text-slate-500 leading-relaxed">
+              No deposit recorded yet for this month.
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between">
+            <span class="text-xs text-slate-500 font-medium">Target: 10,000 RWF</span>
+            <button id="p2QuickPayBtn" onclick="openDepositModal('partner2')" class="text-xs bg-pink-600 hover:bg-pink-700 text-white font-semibold px-3 py-1.5 rounded-lg transition shadow-xs">
+              + Add Deposit
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ANNUAL SAVINGS OVERVIEW (HISTORICAL YEARS) -->
+    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+      <div class="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            <span>Annual Savings History by Year</span>
+          </h3>
+          <p class="text-xs text-slate-500">Summary of total money saved each year</p>
+        </div>
+        <button onclick="openHistoricalBackfillModal()" class="text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition">
+          + Insert Past Year Data
+        </button>
+      </div>
+      <div id="annualSummaryContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- MAIN TWO COLUMNS: REAL-TIME CALENDAR & LOANS -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- REAL-TIME CALENDAR VIEW ("CURRENDAL") - 7 Cols -->
+      <div class="lg:col-span-7 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              <span>Real-Time Calendar</span>
+            </h3>
+            <p class="text-xs text-slate-500">Browse any past year &amp; month (Future dates disabled)</p>
+          </div>
+          
+          <!-- Month & Year Selectors & Navigation -->
+          <div class="flex items-center space-x-1.5 flex-wrap gap-1">
+            <button onclick="changeCalendarMonth(-1)" class="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition" title="Previous Month">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            </button>
+
+            <!-- Month Quick Dropdown -->
+            <select id="calendarMonthSelect" onchange="onCalendarDropdownChange()" class="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-emerald-500 cursor-pointer">
+              <option value="0">January</option>
+              <option value="1">February</option>
+              <option value="2">March</option>
+              <option value="3">April</option>
+              <option value="4">May</option>
+              <option value="5">June</option>
+              <option value="6">July</option>
+              <option value="7">August</option>
+              <option value="8">September</option>
+              <option value="9">October</option>
+              <option value="10">November</option>
+              <option value="11">December</option>
+            </select>
+
+            <!-- Year Quick Dropdown (Past years up to current year) -->
+            <select id="calendarYearSelect" onchange="onCalendarDropdownChange()" class="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-emerald-500 cursor-pointer">
+              <!-- Populated dynamically: 2020..currentYear -->
+            </select>
+
+            <button id="calendarNextBtn" onclick="changeCalendarMonth(1)" class="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition disabled:opacity-30 disabled:cursor-not-allowed" title="Next Month">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </button>
+            <button onclick="jumpToCurrentMonth()" class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg border border-emerald-200 transition">
+              Today
+            </button>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 mb-3 bg-slate-50 p-2 rounded-xl">
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> <span id="legP1">Partner 1 Deposit</span></span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span> <span id="legP2">Partner 2 Deposit</span></span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Loan Taken</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Loan Repaid</span>
+        </div>
+
+        <!-- Day Names -->
+        <div class="grid grid-cols-7 gap-1 text-center font-bold text-[11px] text-slate-400 py-1.5 border-b border-slate-100">
+          <div>SUN</div><div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div>SAT</div>
+        </div>
+
+        <!-- Calendar Days Grid -->
+        <div id="calendarGrid" class="grid grid-cols-7 gap-1 mt-2 flex-1">
+          <!-- Calendar cells rendered by JS -->
+        </div>
+
+      </div>
+
+      <!-- LOAN MANAGEMENT SECTION - 5 Cols -->
+      <div class="lg:col-span-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <div>
+              <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Loan Management</span>
+              </h3>
+              <p class="text-xs text-slate-500">Record past loans or current borrowings &amp; repayments</p>
+            </div>
+            <button onclick="openLoanModal()" class="text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200 transition">
+              + Record Loan
+            </button>
+          </div>
+
+          <!-- Active Loans List -->
+          <div class="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1" id="loansListContainer">
+            <!-- Dynamic Loans List -->
+          </div>
+        </div>
+
+        <!-- Loan Policy Note -->
+        <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-start gap-2 bg-slate-50 p-3 rounded-xl">
+          <svg class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <span>You can backfill loans taken months or years ago. Setting repayments with their exact past timestamps will accurately reconstruct your history.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TRANSACTION AUDIT LEDGER & HISTORY -->
+    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-100">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            <span>Detailed Transaction History</span>
+          </h3>
+          <p class="text-xs text-slate-500">Every deposit and loan recorded with exact timestamp</p>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Year Filter -->
+          <select id="filterYear" onchange="renderTransactions()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-emerald-500">
+            <option value="all">All Years</option>
+            <!-- Populated dynamically -->
+          </select>
+          <select id="filterType" onchange="renderTransactions()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-emerald-500">
+            <option value="all">All Types</option>
+            <option value="deposit">Deposits Only</option>
+            <option value="loan">Loans Only</option>
+            <option value="repayment">Repayments Only</option>
+          </select>
+          <select id="filterPartner" onchange="renderTransactions()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-emerald-500">
+            <option value="all">Both Partners</option>
+            <option value="partner1" id="filterP1Opt">Partner 1</option>
+            <option value="partner2" id="filterP2Opt">Partner 2</option>
+          </select>
+          <button onclick="exportToCSV()" class="text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Transactions Table -->
+      <div class="overflow-x-auto custom-scrollbar">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+              <th class="py-3 px-4">Date &amp; Time</th>
+              <th class="py-3 px-4">Partner</th>
+              <th class="py-3 px-4">Type</th>
+              <th class="py-3 px-4">Description / Notes</th>
+              <th class="py-3 px-4 text-right">Amount</th>
+              <th class="py-3 px-4 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="transactionsTableBody" class="divide-y divide-slate-100">
+            <!-- Dynamic rows -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p>Couple Shared Savings &amp; Loan Account &bull; 10,000 RWF Monthly Rule &bull; Full Historical Backfill</p>
+      <div class="flex items-center gap-3">
+        <button onclick="openSettingsModal()" class="text-slate-600 hover:text-emerald-600 transition">Settings</button>
+        <span>&bull;</span>
+        <a href="/privacy.html" class="text-slate-600 hover:text-emerald-600 transition">Privacy Policy</a>
+        <span>&bull;</span>
+        <button onclick="exportJSONBackup()" class="text-slate-600 hover:text-emerald-600 transition">Backup Data</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. HISTORICAL PAST SAVINGS BACKFILL MODAL -->
+  <div id="historicalBackfillModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <span class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </span>
+            <span>Bulk Backfill Past Savings (Last Years)</span>
+          </h3>
+          <p class="text-xs text-slate-500 mt-0.5">Quickly check off and record savings for all 12 months of any previous year</p>
+        </div>
+        <button onclick="closeHistoricalBackfillModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- Controls & Shortcuts -->
+      <div class="py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0 bg-slate-50 px-3 rounded-xl mt-3">
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-bold text-slate-700">Choose Year:</label>
+          <select id="backfillYearSelect" onchange="loadHistoricalYearGrid()" class="text-xs font-bold bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-indigo-500">
+            <!-- Populated dynamically: 2026, 2025, 2024, 2023, 2022, 2021 -->
+          </select>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="toggleAllBackfill(true, true)" class="text-[11px] font-semibold text-indigo-700 bg-indigo-100/70 hover:bg-indigo-100 px-2.5 py-1 rounded-md transition">
+            ✨ Check All (Both Paid)
+          </button>
+          <button onclick="toggleAllBackfill(true, false)" class="text-[11px] font-semibold text-blue-700 bg-blue-100/70 hover:bg-blue-100 px-2.5 py-1 rounded-md transition">
+            All <span id="backfillP1BtnLabel">Partner 1</span>
+          </button>
+          <button onclick="toggleAllBackfill(false, true)" class="text-[11px] font-semibold text-pink-700 bg-pink-100/70 hover:bg-pink-100 px-2.5 py-1 rounded-md transition">
+            All <span id="backfillP2BtnLabel">Partner 2</span>
+          </button>
+          <button onclick="clearAllBackfill()" class="text-[11px] font-semibold text-slate-600 hover:bg-slate-200 px-2.5 py-1 rounded-md transition">
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- Months Grid / Form -->
+      <div class="overflow-y-auto custom-scrollbar flex-1 py-3 space-y-2 pr-1" id="backfillMonthsList">
+        <!-- Rendered dynamically for 12 months -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+        <span class="text-xs text-slate-500" id="backfillSummaryCount">0 deposits selected</span>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeHistoricalBackfillModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
+          <button type="button" onclick="submitHistoricalBackfill()" class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-md shadow-indigo-600/20">
+            Save Past Savings Records
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 2. DEPOSIT MODAL -->
+  <div id="depositModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          </span>
+          <span>Record Monthly Deposit</span>
+        </h3>
+        <button onclick="closeDepositModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="depositForm" onsubmit="handleDepositSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Depositor</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="cursor-pointer border rounded-xl p-3 flex items-center gap-2 text-xs font-semibold hover:border-blue-400 has-checked:border-blue-500 has-checked:bg-blue-50">
+              <input type="radio" name="depositPartner" value="partner1" class="text-blue-600" checked>
+              <span id="depLabelP1">Partner 1</span>
+            </label>
+            <label class="cursor-pointer border rounded-xl p-3 flex items-center gap-2 text-xs font-semibold hover:border-pink-400 has-checked:border-pink-500 has-checked:bg-pink-50">
+              <input type="radio" name="depositPartner" value="partner2" class="text-pink-600">
+              <span id="depLabelP2">Partner 2</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Amount (RWF)</label>
+          <div class="relative">
+            <input type="number" id="depositAmount" value="10000" min="100" step="100" required class="w-full text-sm font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-8 focus:bg-white focus:outline-emerald-500">
+            <span class="absolute left-3 top-2.5 text-xs font-bold text-slate-400">RF</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Default monthly rule is 10,000 RWF</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">For Month</label>
+            <input type="month" id="depositMonthKey" required onchange="onDepositMonthInputChange(this.value)" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-emerald-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Exact Date &amp; Time</label>
+            <input type="datetime-local" id="depositDateTime" required onchange="onDepositDateTimeInputChange(this.value)" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-emerald-500">
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 italic">Select any past date back to when your account began. Future dates are blocked.</p>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Note / Description (Optional)</label>
+          <input type="text" id="depositNote" placeholder="e.g. Bank deposit reference, Mobile Money, etc." class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-emerald-500">
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeDepositModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-md shadow-emerald-600/20">Save Deposit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. LOAN MODAL -->
+  <div id="loanModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <span class="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          </span>
+          <span>Record Loan From Joint Account</span>
+        </h3>
+        <button onclick="closeLoanModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="loanForm" onsubmit="handleLoanSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Borrower (Who took the loan?)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="cursor-pointer border rounded-xl p-3 flex items-center gap-2 text-xs font-semibold hover:border-blue-400 has-checked:border-blue-500 has-checked:bg-blue-50">
+              <input type="radio" name="loanPartner" value="partner1" class="text-blue-600" checked>
+              <span id="loanLabelP1">Partner 1</span>
+            </label>
+            <label class="cursor-pointer border rounded-xl p-3 flex items-center gap-2 text-xs font-semibold hover:border-pink-400 has-checked:border-pink-500 has-checked:bg-pink-50">
+              <input type="radio" name="loanPartner" value="partner2" class="text-pink-600">
+              <span id="loanLabelP2">Partner 2</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Loan Amount (RWF)</label>
+          <div class="relative">
+            <input type="number" id="loanAmount" min="500" step="500" required placeholder="e.g. 5000" class="w-full text-sm font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-8 focus:bg-white focus:outline-amber-500">
+            <span class="absolute left-3 top-2.5 text-xs font-bold text-slate-400">RF</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Purpose / Reason</label>
+          <input type="text" id="loanReason" required placeholder="e.g. Emergency medical, school fees, business" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-amber-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Date &amp; Time Taken</label>
+            <input type="datetime-local" id="loanDateTime" required class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-amber-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Expected Repayment Date</label>
+            <input type="date" id="loanDueDate" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-amber-500">
+          </div>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeLoanModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition shadow-md shadow-amber-600/20">Record Loan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. REPAY LOAN MODAL -->
+  <div id="repayModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </span>
+          <span>Repay Loan to Joint Account</span>
+        </h3>
+        <button onclick="closeRepayModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="repayForm" onsubmit="handleRepaySubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Select Active Loan to Repay</label>
+          <select id="repayLoanSelect" onchange="onRepayLoanSelected(this.value)" required class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-emerald-500">
+            <!-- Dynamic options -->
+          </select>
+        </div>
+
+        <div id="repayLoanDetailsBox" class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+          <div class="flex justify-between"><span class="text-slate-500">Borrower:</span> <strong id="repayBorrowerText">--</strong></div>
+          <div class="flex justify-between"><span class="text-slate-500">Reason:</span> <span id="repayReasonText">--</span></div>
+          <div class="flex justify-between"><span class="text-slate-500">Remaining Balance:</span> <strong id="repayRemainingText" class="text-rose-600">0 RWF</strong></div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Repayment Amount (RWF)</label>
+          <div class="relative">
+            <input type="number" id="repayAmount" min="100" step="100" required class="w-full text-sm font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-8 focus:bg-white focus:outline-emerald-500">
+            <span class="absolute left-3 top-2.5 text-xs font-bold text-slate-400">RF</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Date &amp; Time of Repayment</label>
+          <input type="datetime-local" id="repayDateTime" required class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Note (Optional)</label>
+          <input type="text" id="repayNote" placeholder="e.g. Partial repayment, full settlement" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-emerald-500">
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeRepayModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-md shadow-emerald-600/20">Submit Repayment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. CALENDAR DAY DETAILS MODAL -->
+  <div id="dayDetailsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <div>
+          <h3 id="dayModalDateTitle" class="text-base font-bold text-slate-900">November 2, 2026</h3>
+          <p class="text-xs text-slate-500">Daily Activity Breakdown</p>
+        </div>
+        <button onclick="closeDayDetailsModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div id="dayTransactionsList" class="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar mb-4">
+        <!-- Rendered by JS -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+        <button id="dayModalAddBtn" onclick="quickAddOnDate()" class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl border border-emerald-200 transition">
+          + Add Entry On This Date
+        </button>
+        <button onclick="closeDayDetailsModal()" class="text-xs font-semibold text-slate-600 hover:bg-slate-100 px-3 py-2 rounded-xl transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. SETTINGS & PROFILE MODAL -->
+  <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <span class="p-1.5 rounded-lg bg-slate-100 text-slate-700">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+          </span>
+          <span>Account &amp; Partner Settings</span>
+        </h3>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="settingsForm" onsubmit="handleSettingsSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Name (e.g. Your Name)</label>
+          <input type="text" id="settingP1Name" required placeholder="Partner 1" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 2 Name (e.g. Girlfriend's Name)</label>
+          <input type="text" id="settingP2Name" required placeholder="Partner 2" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-pink-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Monthly Target Each</label>
+            <input type="number" id="settingMonthlyTarget" value="10000" min="1000" step="500" required class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-emerald-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Currency</label>
+            <input type="text" id="settingCurrency" value="RWF" required class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-emerald-500">
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+          <button type="button" onclick="resetDatabaseConfirm()" class="text-xs font-semibold text-rose-600 hover:text-rose-700">
+            Reset All Data
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="closeSettingsModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
+            <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-black rounded-xl transition">Save Changes</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 bg-slate-900 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl border border-slate-800 flex items-center gap-2 transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
+    <span id="toastIcon">✅</span>
+    <span id="toastMessage">Action completed</span>
+  </div>
+
+  <!-- ==================== FRONTEND JAVASCRIPT ==================== -->
+  <script>
+    // App State
+    let appData = {
+      settings: {
+        partner1Name: "Emmanuel",
+        partner2Name: "Sarah",
+        monthlyTarget: 10000,
+        currency: "RWF",
+        accountName: "Joint Savings Account"
+      },
+      transactions: [],
+      loans: [],
+      summary: null
+    };
+
+    // Calendar State
+    let calendarDate = new Date();
+    let selectedDayDetails = null;
+
+    // Is running connected to local server or standalone file
+    let isConnectedToServer = false;
+
+    // Real-Time Clock
+    function updateClock() {
+      const now = new Date();
+      
+      const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+      document.getElementById('liveClockDate').textContent = now.toLocaleDateString('en-US', options);
+
+      let hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const timeStr = `${String(hours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
+
+      document.getElementById('liveClockTime').textContent = timeStr;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Enforce No Future Dates on all inputs
+    function enforceMaxDates() {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+      const currentMonthKey = `${currentYear}-${currentMonth}`;
+
+      // Local ISO string without timezone shift for datetime-local
+      const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+      document.getElementById('depositDateTime').max = localIso;
+      document.getElementById('depositMonthKey').max = currentMonthKey;
+      document.getElementById('loanDateTime').max = localIso;
+      document.getElementById('repayDateTime').max = localIso;
+      document.getElementById('selectedMonthPicker').max = currentMonthKey;
+    }
+
+    // Format currency
+    function fmtCur(amt) {
+      const num = Number(amt) || 0;
+      return `${num.toLocaleString('en-US')} ${appData.settings.currency || 'RWF'}`;
+    }
+
+    // Format exact Date & Time
+    function fmtDateTime(isoString) {
+      if (!isoString) return '--';
+      const d = new Date(isoString);
+      return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      }) + ' at ' + d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // Show Toast
+    function showToast(msg, icon = '✅') {
+      const toast = document.getElementById('toastNotification');
+      document.getElementById('toastMessage').textContent = msg;
+      document.getElementById('toastIcon').textContent = icon;
+      toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+      }, 3500);
+    }
+
+    // Local Storage helpers for standalone / offline fallback
+    function saveToLocalStorage() {
+      localStorage.setItem('duo_savings_data', JSON.stringify({
+        settings: appData.settings,
+        transactions: appData.transactions,
+        loans: appData.loans
+      }));
+    }
+
+    function loadFromLocalStorage() {
+      const raw = localStorage.getItem('duo_savings_data');
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          appData.settings = parsed.settings || appData.settings;
+          appData.transactions = parsed.transactions || [];
+          appData.loans = parsed.loans || [];
+        } catch(e) {
+          console.error(e);
+        }
+      }
+    }
+
+    // Fetch from Backend API or LocalStorage
+    async function fetchAppData() {
+      try {
+        const res = await fetch('/api/data', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            isConnectedToServer = true;
+            appData.settings = data.settings;
+            appData.transactions = data.transactions || [];
+            appData.loans = data.loans || [];
+            appData.summary = data.summary;
+            renderAll();
+            return;
+          }
+        }
+      } catch (err) {
+        console.log('Backend not detected, using client-side persistent storage');
+      }
+
+      // Fallback
+      isConnectedToServer = false;
+      loadFromLocalStorage();
+      recomputeClientSummary();
+      renderAll();
+    }
+
+    // Client-side Summary calculation (when offline)
+    function recomputeClientSummary() {
+      let p1Dep = 0, p2Dep = 0, totalDep = 0;
+      let p1LoanTaken = 0, p2LoanTaken = 0;
+      let p1LoanRepaid = 0, p2LoanRepaid = 0;
+      const yearly = {};
+
+      appData.transactions.forEach(tx => {
+        const amt = Number(tx.amount) || 0;
+        if (tx.type === 'deposit') {
+          totalDep += amt;
+          if (tx.partner === 'partner1') p1Dep += amt;
+          else if (tx.partner === 'partner2') p2Dep += amt;
+
+          const yr = (tx.date || '').slice(0, 4) || new Date().getFullYear().toString();
+          if (!yearly[yr]) yearly[yr] = { year: yr, total: 0, partner1: 0, partner2: 0 };
+          yearly[yr].total += amt;
+          if (tx.partner === 'partner1') yearly[yr].partner1 += amt;
+          else if (tx.partner === 'partner2') yearly[yr].partner2 += amt;
+
+        } else if (tx.type === 'loan') {
+          if (tx.partner === 'partner1') p1LoanTaken += amt;
+          else if (tx.partner === 'partner2') p2LoanTaken += amt;
+        } else if (tx.type === 'repayment') {
+          if (tx.partner === 'partner1') p1LoanRepaid += amt;
+          else if (tx.partner === 'partner2') p2LoanRepaid += amt;
+        }
+      });
+
+      const bankBalance = (totalDep + p1LoanRepaid + p2LoanRepaid) - (p1LoanTaken + p2LoanTaken);
+      const p1LoanBal = Math.max(0, p1LoanTaken - p1LoanRepaid);
+      const p2LoanBal = Math.max(0, p2LoanTaken - p2LoanRepaid);
+
+      appData.summary = {
+        currentBankBalance: bankBalance,
+        totalDeposits: totalDep,
+        totalOutstandingLoans: p1LoanBal + p2LoanBal,
+        partner1: {
+          totalDeposited: p1Dep,
+          activeLoanOwed: p1LoanBal,
+          netSavings: p1Dep - p1LoanBal
+        },
+        partner2: {
+          totalDeposited: p2Dep,
+          activeLoanOwed: p2LoanBal,
+          netSavings: p2Dep - p2LoanBal
+        },
+        yearlyBreakdown: yearly
+      };
+    }
+
+    // Render Full UI
+    function renderAll() {
+      enforceMaxDates();
+      renderLabels();
+      renderStats();
+      renderMonthlyTracker();
+      renderAnnualOverview();
+      renderCalendarControls();
+      renderCalendar();
+      renderLoans();
+      renderTransactions();
+    }
+
+    // Update Partner Names & Labels across the UI
+    function renderLabels() {
+      const p1 = appData.settings.partner1Name || "Partner 1";
+      const p2 = appData.settings.partner2Name || "Partner 2";
+
+      document.getElementById('headerPartner1Name').textContent = p1;
+      document.getElementById('headerPartner2Name').textContent = p2;
+      document.getElementById('statP1NameTitle').textContent = p1;
+      document.getElementById('statP2NameTitle').textContent = p2;
+      document.getElementById('btnP1Label').textContent = p1;
+      document.getElementById('btnP2Label').textContent = p2;
+      document.getElementById('p1CardName').textContent = p1;
+      document.getElementById('p2CardName').textContent = p2;
+      document.getElementById('depLabelP1').textContent = p1;
+      document.getElementById('depLabelP2').textContent = p2;
+      document.getElementById('loanLabelP1').textContent = p1;
+      document.getElementById('loanLabelP2').textContent = p2;
+      document.getElementById('filterP1Opt').textContent = p1;
+      document.getElementById('filterP2Opt').textContent = p2;
+      document.getElementById('legP1').textContent = p1 + ' Deposit';
+      document.getElementById('legP2').textContent = p2 + ' Deposit';
+      document.getElementById('backfillP1BtnLabel').textContent = p1;
+      document.getElementById('backfillP2BtnLabel').textContent = p2;
+    }
+
+    // Render 4 Stats Cards
+    function renderStats() {
+      const s = appData.summary || {
+        currentBankBalance: 0,
+        totalDeposits: 0,
+        totalOutstandingLoans: 0,
+        partner1: { totalDeposited: 0, activeLoanOwed: 0, netSavings: 0 },
+        partner2: { totalDeposited: 0, activeLoanOwed: 0, netSavings: 0 }
+      };
+
+      document.getElementById('statTotalBalance').textContent = fmtCur(s.currentBankBalance);
+      document.getElementById('statGrossDeposits').textContent = fmtCur(s.totalDeposits);
+
+      // P1
+      document.getElementById('statP1TotalDeposited').textContent = fmtCur(s.partner1.totalDeposited);
+      document.getElementById('statP1LoanOwed').textContent = fmtCur(s.partner1.activeLoanOwed);
+      document.getElementById('statP1NetShare').textContent = fmtCur(s.partner1.netSavings);
+
+      // P2
+      document.getElementById('statP2TotalDeposited').textContent = fmtCur(s.partner2.totalDeposited);
+      document.getElementById('statP2LoanOwed').textContent = fmtCur(s.partner2.activeLoanOwed);
+      document.getElementById('statP2NetShare').textContent = fmtCur(s.partner2.netSavings);
+
+      // Total Loans
+      document.getElementById('statTotalLoansOwed').textContent = fmtCur(s.totalOutstandingLoans);
+      
+      const p1 = appData.settings.partner1Name;
+      const p2 = appData.settings.partner2Name;
+      let borrowerSummary = "None";
+      if (s.partner1.activeLoanOwed > 0 && s.partner2.activeLoanOwed > 0) {
+        borrowerSummary = `${p1} & ${p2}`;
+      } else if (s.partner1.activeLoanOwed > 0) {
+        borrowerSummary = `${p1} (${fmtCur(s.partner1.activeLoanOwed)})`;
+      } else if (s.partner2.activeLoanOwed > 0) {
+        borrowerSummary = `${p2} (${fmtCur(s.partner2.activeLoanOwed)})`;
+      }
+      document.getElementById('statBorrowerSummary').textContent = borrowerSummary;
+    }
+
+    // Get current selected month key (e.g. "2026-11")
+    function getSelectedMonthKey() {
+      const picker = document.getElementById('selectedMonthPicker');
+      if (picker && picker.value) return picker.value;
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    // Monthly Savings Tracker
+    function renderMonthlyTracker() {
+      const monthKey = getSelectedMonthKey();
+      const [year, monthNum] = monthKey.split('-').map(Number);
+      const dateObj = new Date(year, monthNum - 1, 1);
+      const monthName = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+      document.getElementById('currentMonthYearLabel').textContent = monthName;
+      document.getElementById('selectedMonthPicker').value = monthKey;
+
+      const target = appData.settings.monthlyTarget || 10000;
+      const totalMonthTarget = target * 2;
+
+      // Filter deposits for this month
+      const monthDeps = appData.transactions.filter(t => t.type === 'deposit' && (t.monthKey === monthKey || (t.date && t.date.slice(0, 7) === monthKey)));
+
+      const p1Deps = monthDeps.filter(t => t.partner === 'partner1');
+      const p2Deps = monthDeps.filter(t => t.partner === 'partner2');
+
+      const p1Total = p1Deps.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const p2Total = p2Deps.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const combinedTotal = p1Total + p2Total;
+
+      // Progress Bar
+      const percent = Math.min(100, Math.round((combinedTotal / totalMonthTarget) * 100));
+      document.getElementById('monthProgressText').textContent = `${combinedTotal.toLocaleString()} / ${totalMonthTarget.toLocaleString()} ${appData.settings.currency}`;
+      document.getElementById('monthProgressPercent').textContent = `${percent}%`;
+      document.getElementById('monthProgressBar').style.width = `${percent}%`;
+
+      // Partner 1 Status
+      const p1Badge = document.getElementById('p1StatusBadge');
+      const p1StatBadge = document.getElementById('statP1MonthBadge');
+      const p1Info = document.getElementById('p1TimestampInfo');
+      const p1Container = document.getElementById('p1StatusContainer');
+      const p1Btn = document.getElementById('p1QuickPayBtn');
+
+      if (p1Total >= target) {
+        const last = p1Deps[p1Deps.length - 1];
+        p1Badge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
+        p1Badge.innerHTML = '✅ 10k Deposited';
+        p1StatBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+        p1StatBadge.textContent = 'Paid ✓';
+        p1Info.innerHTML = `Deposited <strong>${fmtCur(p1Total)}</strong><br><span class="text-emerald-700 font-medium">🕒 Time: ${fmtDateTime(last.date)}</span>`;
+        p1Container.className = 'p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 flex flex-col justify-between transition';
+        p1Btn.textContent = '+ Add Extra';
+      } else {
+        const remaining = target - p1Total;
+        p1Badge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200';
+        p1Badge.innerHTML = `⏳ Due: ${fmtCur(remaining)}`;
+        p1StatBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
+        p1StatBadge.textContent = 'Pending';
+        p1Info.innerHTML = p1Total > 0 
+          ? `Partially paid: ${fmtCur(p1Total)} (${fmtCur(remaining)} remaining)`
+          : `No deposit recorded for ${monthName}.`;
+        p1Container.className = 'p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between transition';
+        p1Btn.textContent = '+ Pay 10,000 RWF';
+      }
+
+      // Partner 2 Status
+      const p2Badge = document.getElementById('p2StatusBadge');
+      const p2StatBadge = document.getElementById('statP2MonthBadge');
+      const p2Info = document.getElementById('p2TimestampInfo');
+      const p2Container = document.getElementById('p2StatusContainer');
+      const p2Btn = document.getElementById('p2QuickPayBtn');
+
+      if (p2Total >= target) {
+        const last = p2Deps[p2Deps.length - 1];
+        p2Badge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
+        p2Badge.innerHTML = '✅ 10k Deposited';
+        p2StatBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+        p2StatBadge.textContent = 'Paid ✓';
+        p2Info.innerHTML = `Deposited <strong>${fmtCur(p2Total)}</strong><br><span class="text-emerald-700 font-medium">🕒 Time: ${fmtDateTime(last.date)}</span>`;
+        p2Container.className = 'p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 flex flex-col justify-between transition';
+        p2Btn.textContent = '+ Add Extra';
+      } else {
+        const remaining = target - p2Total;
+        p2Badge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200';
+        p2Badge.innerHTML = `⏳ Due: ${fmtCur(remaining)}`;
+        p2StatBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
+        p2StatBadge.textContent = 'Pending';
+        p2Info.innerHTML = p2Total > 0 
+          ? `Partially paid: ${fmtCur(p2Total)} (${fmtCur(remaining)} remaining)`
+          : `No deposit recorded for ${monthName}.`;
+        p2Container.className = 'p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between transition';
+        p2Btn.textContent = '+ Pay 10,000 RWF';
+      }
+    }
+
+    function onMonthPickerChange(val) {
+      if (val) {
+        // Prevent picking future month
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        if (val > currentMonthKey) {
+          showToast("Future months cannot be selected", "⚠️");
+          val = currentMonthKey;
+          document.getElementById('selectedMonthPicker').value = val;
+        }
+
+        const [year, month] = val.split('-').map(Number);
+        calendarDate = new Date(year, month - 1, 1);
+        renderCalendarControls();
+        renderMonthlyTracker();
+        renderCalendar();
+      }
+    }
+
+    // Annual Overview Cards
+    function renderAnnualOverview() {
+      const container = document.getElementById('annualSummaryContainer');
+      container.innerHTML = '';
+
+      const yearly = appData.summary?.yearlyBreakdown || {};
+      const currentYear = new Date().getFullYear();
+
+      // Ensure at least current year and last year are represented
+      const yearsSet = new Set(Object.keys(yearly));
+      yearsSet.add(currentYear.toString());
+      yearsSet.add((currentYear - 1).toString());
+
+      const sortedYears = Array.from(yearsSet).sort((a, b) => Number(b) - Number(a));
+
+      sortedYears.forEach(yr => {
+        const data = yearly[yr] || { year: yr, total: 0, partner1: 0, partner2: 0 };
+        const card = document.createElement('div');
+        card.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between hover:border-indigo-300 transition';
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">${yr} Annual</span>
+              <span class="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                ${data.total > 0 ? 'Active Year' : 'No entries'}
+              </span>
+            </div>
+            <div class="text-lg font-extrabold text-slate-800">${fmtCur(data.total)}</div>
+          </div>
+          <div class="mt-3 pt-2.5 border-t border-slate-200/60 text-[11px] space-y-0.5">
+            <div class="flex justify-between text-slate-600">
+              <span>${appData.settings.partner1Name}:</span>
+              <strong class="text-blue-700">${fmtCur(data.partner1)}</strong>
+            </div>
+            <div class="flex justify-between text-slate-600">
+              <span>${appData.settings.partner2Name}:</span>
+              <strong class="text-pink-700">${fmtCur(data.partner2)}</strong>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      // Also update Transaction Year filter
+      const yearFilter = document.getElementById('filterYear');
+      const prevSelected = yearFilter.value;
+      yearFilter.innerHTML = '<option value="all">All Years</option>';
+      sortedYears.forEach(yr => {
+        const opt = document.createElement('option');
+        opt.value = yr;
+        opt.textContent = `Year ${yr}`;
+        if (yr === prevSelected) opt.selected = true;
+        yearFilter.appendChild(opt);
+      });
+    }
+
+    // ================= REAL-TIME CALENDAR ("CURRENDAL") =================
+    function renderCalendarControls() {
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth();
+      const selectedYear = calendarDate.getFullYear();
+      const selectedMonth = calendarDate.getMonth();
+
+      // Populate Year Dropdown (e.g. from 2020 to currentYear)
+      const yearSelect = document.getElementById('calendarYearSelect');
+      yearSelect.innerHTML = '';
+      for (let y = currentYear; y >= 2020; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        if (y === selectedYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+      }
+
+      // Populate Month Dropdown (disable future months if in currentYear)
+      const monthSelect = document.getElementById('calendarMonthSelect');
+      monthSelect.value = selectedMonth;
+
+      for (let m = 0; m < 12; m++) {
+        const option = monthSelect.options[m];
+        if (selectedYear === currentYear && m > currentMonth) {
+          option.disabled = true;
+          option.textContent = `${option.textContent.replace(' (Future)', '')} (Future)`;
+        } else {
+          option.disabled = false;
+          option.textContent = option.textContent.replace(' (Future)', '');
+        }
+      }
+
+      // Disable Next Button if viewing current month & year
+      const nextBtn = document.getElementById('calendarNextBtn');
+      if (selectedYear > currentYear || (selectedYear === currentYear && selectedMonth >= currentMonth)) {
+        nextBtn.disabled = true;
+      } else {
+        nextBtn.disabled = false;
+      }
+    }
+
+    function onCalendarDropdownChange() {
+      const year = Number(document.getElementById('calendarYearSelect').value);
+      let month = Number(document.getElementById('calendarMonthSelect').value);
+
+      const now = new Date();
+      if (year === now.getFullYear() && month > now.getMonth()) {
+        month = now.getMonth();
+        document.getElementById('calendarMonthSelect').value = month;
+      }
+
+      calendarDate = new Date(year, month, 1);
+      syncMonthPickerWithCalendar();
+      renderCalendarControls();
+      renderCalendar();
+      renderMonthlyTracker();
+    }
+
+    function changeCalendarMonth(delta) {
+      const targetDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + delta, 1);
+      const now = new Date();
+
+      // Prevent navigating into future
+      if (targetDate.getFullYear() > now.getFullYear() || (targetDate.getFullYear() === now.getFullYear() && targetDate.getMonth() > now.getMonth())) {
+        showToast("Cannot navigate to future months", "⚠️");
+        return;
+      }
+
+      calendarDate = targetDate;
+      syncMonthPickerWithCalendar();
+      renderCalendarControls();
+      renderCalendar();
+      renderMonthlyTracker();
+    }
+
+    function jumpToCurrentMonth() {
+      calendarDate = new Date();
+      syncMonthPickerWithCalendar();
+      renderCalendarControls();
+      renderCalendar();
+      renderMonthlyTracker();
+    }
+
+    function syncMonthPickerWithCalendar() {
+      const year = calendarDate.getFullYear();
+      const month = String(calendarDate.getMonth() + 1).padStart(2, '0');
+      document.getElementById('selectedMonthPicker').value = `${year}-${month}`;
+    }
+
+    function renderCalendar() {
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
+
+      const grid = document.getElementById('calendarGrid');
+      grid.innerHTML = '';
+
+      const firstDayIndex = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+      const today = new Date();
+      const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+      const todayDate = today.getDate();
+
+      // Collect transactions for this month grouped by day
+      const dayTransactionsMap = {};
+      appData.transactions.forEach(tx => {
+        if (!tx.date) return;
+        const d = new Date(tx.date);
+        if (d.getFullYear() === year && d.getMonth() === month) {
+          const dayNum = d.getDate();
+          if (!dayTransactionsMap[dayNum]) dayTransactionsMap[dayNum] = [];
+          dayTransactionsMap[dayNum].push(tx);
+        }
+      });
+
+      // Previous month padding days
+      for (let i = firstDayIndex - 1; i >= 0; i--) {
+        const padDay = daysInPrevMonth - i;
+        const cell = document.createElement('div');
+        cell.className = 'min-h-[70px] p-1.5 rounded-xl border border-slate-100 bg-slate-50/30 text-slate-300 text-xs font-medium cursor-not-allowed';
+        cell.innerHTML = `<span>${padDay}</span>`;
+        grid.appendChild(cell);
+      }
+
+      // Current Month Days
+      for (let day = 1; day <= daysInMonth; day++) {
+        const cell = document.createElement('div');
+        const isToday = isCurrentMonth && day === todayDate;
+        const isFutureDay = isCurrentMonth && day > todayDate;
+        const txList = dayTransactionsMap[day] || [];
+
+        let cellClasses = 'min-h-[75px] p-1.5 rounded-xl border text-xs font-medium flex flex-col justify-between transition ';
+        
+        if (isFutureDay) {
+          cellClasses += 'border-slate-100 bg-slate-50/40 text-slate-300 cursor-not-allowed opacity-60 ';
+        } else if (isToday) {
+          cellClasses += 'border-emerald-500 bg-emerald-50/30 ring-2 ring-emerald-500/20 cursor-pointer hover:shadow-md ';
+        } else if (txList.length > 0) {
+          cellClasses += 'border-slate-200 bg-white hover:border-emerald-400 cursor-pointer hover:shadow-md ';
+        } else {
+          cellClasses += 'border-slate-100 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer hover:shadow-md ';
+        }
+
+        cell.className = cellClasses;
+        
+        if (!isFutureDay) {
+          cell.onclick = () => openDayDetailsModal(year, month, day, txList);
+        }
+
+        // Header inside cell: date number + today tag
+        let headerHtml = `<div class="flex justify-between items-center">
+          <span class="font-bold ${isToday ? 'text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md' : (isFutureDay ? 'text-slate-300' : 'text-slate-800')}">${day}</span>
+          ${isToday ? '<span class="text-[9px] font-extrabold text-emerald-600 uppercase tracking-tighter">TODAY</span>' : ''}
+        </div>`;
+
+        // Chips for transactions
+        let chipsHtml = '<div class="space-y-1 mt-1">';
+        txList.slice(0, 3).forEach(tx => {
+          let chipClass = 'bg-slate-100 text-slate-700';
+          let shortText = '';
+
+          if (tx.type === 'deposit') {
+            if (tx.partner === 'partner1') {
+              chipClass = 'bg-blue-100 text-blue-800 border border-blue-200';
+              shortText = `+10k ${appData.settings.partner1Name?.slice(0, 5)}`;
+            } else {
+              chipClass = 'bg-pink-100 text-pink-800 border border-pink-200';
+              shortText = `+10k ${appData.settings.partner2Name?.slice(0, 5)}`;
+            }
+          } else if (tx.type === 'loan') {
+            chipClass = 'bg-amber-100 text-amber-800 border border-amber-200';
+            shortText = `Loan -${(Number(tx.amount)/1000).toFixed(0)}k`;
+          } else if (tx.type === 'repayment') {
+            chipClass = 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+            shortText = `Repay +${(Number(tx.amount)/1000).toFixed(0)}k`;
+          }
+
+          chipsHtml += `<div class="text-[9px] font-bold px-1 py-0.5 rounded truncate ${chipClass}" title="${tx.note || ''}">${shortText}</div>`;
+        });
+
+        if (txList.length > 3) {
+          chipsHtml += `<div class="text-[9px] text-slate-400 font-semibold">+${txList.length - 3} more</div>`;
+        }
+        chipsHtml += '</div>';
+
+        cell.innerHTML = headerHtml + chipsHtml;
+        grid.appendChild(cell);
+      }
+
+      // Next month padding days to complete grid to 35 or 42 cells
+      const totalCells = firstDayIndex + daysInMonth;
+      const nextMonthPad = totalCells <= 35 ? 35 - totalCells : 42 - totalCells;
+      for (let j = 1; j <= nextMonthPad; j++) {
+        const cell = document.createElement('div');
+        cell.className = 'min-h-[70px] p-1.5 rounded-xl border border-slate-100 bg-slate-50/30 text-slate-300 text-xs font-medium cursor-not-allowed';
+        cell.innerHTML = `<span>${j}</span>`;
+        grid.appendChild(cell);
+      }
+    }
+
+    // DAY DETAILS MODAL
+    function openDayDetailsModal(year, month, day, txList) {
+      const dateObj = new Date(year, month, day);
+      selectedDayDetails = { year, month, day, dateStr: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` };
+
+      document.getElementById('dayModalDateTitle').textContent = dateObj.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+
+      const listContainer = document.getElementById('dayTransactionsList');
+      listContainer.innerHTML = '';
+
+      if (!txList || txList.length === 0) {
+        listContainer.innerHTML = `
+          <div class="text-center py-6 text-slate-400 text-xs">
+            <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            No transactions recorded on this date.
+          </div>
+        `;
+      } else {
+        txList.forEach(tx => {
+          const item = document.createElement('div');
+          item.className = 'p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1';
+          
+          let badgeColor = 'bg-slate-200 text-slate-800';
+          let partnerName = tx.partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+
+          if (tx.type === 'deposit') badgeColor = 'bg-emerald-100 text-emerald-800';
+          else if (tx.type === 'loan') badgeColor = 'bg-amber-100 text-amber-800';
+          else if (tx.type === 'repayment') badgeColor = 'bg-blue-100 text-blue-800';
+
+          item.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-slate-800">${partnerName}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${badgeColor}">${tx.type}</span>
+            </div>
+            <div class="text-slate-600">${tx.note || 'No notes'}</div>
+            <div class="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+              <span class="text-slate-400">🕒 ${new Date(tx.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+              <strong class="text-slate-900">${fmtCur(tx.amount)}</strong>
+            </div>
+          `;
+          listContainer.appendChild(item);
+        });
+      }
+
+      document.getElementById('dayDetailsModal').classList.remove('hidden');
+    }
+
+    function closeDayDetailsModal() {
+      document.getElementById('dayDetailsModal').classList.add('hidden');
+    }
+
+    function quickAddOnDate() {
+      closeDayDetailsModal();
+      if (selectedDayDetails) {
+        const timeNow = new Date().toTimeString().slice(0, 5);
+        openDepositModal('partner1', `${selectedDayDetails.dateStr}T${timeNow}`);
+      }
+    }
+
+    // ================= HISTORICAL PAST SAVINGS BACKFILL MODAL =================
+    function openHistoricalBackfillModal() {
+      const currentYear = new Date().getFullYear();
+      const select = document.getElementById('backfillYearSelect');
+      select.innerHTML = '';
+
+      // Last 6 years (e.g. 2026, 2025, 2024, 2023, 2022, 2021)
+      for (let y = currentYear; y >= currentYear - 5; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = `Year ${y}`;
+        // Default select previous year if available so user can backfill last year instantly
+        if (y === currentYear - 1) opt.selected = true;
+        select.appendChild(opt);
+      }
+
+      loadHistoricalYearGrid();
+      document.getElementById('historicalBackfillModal').classList.remove('hidden');
+    }
+
+    function closeHistoricalBackfillModal() {
+      document.getElementById('historicalBackfillModal').classList.add('hidden');
+    }
+
+    const MONTH_NAMES = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+
+    function loadHistoricalYearGrid() {
+      const year = Number(document.getElementById('backfillYearSelect').value);
+      const container = document.getElementById('backfillMonthsList');
+      container.innerHTML = '';
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth(); // 0..11
+
+      const p1 = appData.settings.partner1Name;
+      const p2 = appData.settings.partner2Name;
+      const target = appData.settings.monthlyTarget || 10000;
+
+      for (let m = 0; m < 12; m++) {
+        const monthNumStr = String(m + 1).padStart(2, '0');
+        const monthKey = `${year}-${monthNumStr}`;
+        const isFutureMonth = (year === currentYear && m > currentMonth);
+
+        // Check existing deposits for this month
+        const existingP1 = appData.transactions.find(t => t.type === 'deposit' && t.partner === 'partner1' && (t.monthKey === monthKey || (t.date && t.date.slice(0,7) === monthKey)));
+        const existingP2 = appData.transactions.find(t => t.type === 'deposit' && t.partner === 'partner2' && (t.monthKey === monthKey || (t.date && t.date.slice(0,7) === monthKey)));
+
+        const row = document.createElement('div');
+        row.className = `p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${isFutureMonth ? 'bg-slate-100/60 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-slate-50/70 border-slate-200'}`;
+
+        let statusText = '';
+        if (isFutureMonth) {
+          statusText = '<span class="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">Future Month (Blocked)</span>';
+        } else if (existingP1 && existingP2) {
+          statusText = '<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">Both Saved ✓</span>';
+        } else if (existingP1 || existingP2) {
+          statusText = '<span class="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">Partially Saved</span>';
+        }
+
+        row.innerHTML = `
+          <div class="sm:w-44 flex items-center justify-between sm:justify-start gap-2">
+            <strong class="text-slate-800 font-bold">${MONTH_NAMES[m]} ${year}</strong>
+            ${statusText}
+          </div>
+          <div class="flex-1 flex flex-wrap items-center gap-3">
+            
+            <!-- Partner 1 Checkbox & Day -->
+            <label class="flex items-center gap-2 p-2 rounded-lg bg-white border border-slate-200 cursor-pointer ${isFutureMonth ? 'pointer-events-none' : ''}">
+              <input type="checkbox" data-month="${monthKey}" data-partner="partner1" onchange="updateBackfillCount()" ${existingP1 ? 'checked disabled' : ''} ${isFutureMonth ? 'disabled' : ''} class="backfill-checkbox text-blue-600 rounded">
+              <span class="font-semibold text-blue-700">${p1}</span>
+              <span class="text-slate-500 font-medium">(${target.toLocaleString()})</span>
+              ${existingP1 ? '<span class="text-emerald-600 text-[10px] font-bold">✓ Saved</span>' : `
+                <span class="text-slate-400 text-[10px]">Day:</span>
+                <input type="number" min="1" max="28" value="5" data-day-month="${monthKey}-p1" class="w-11 text-[11px] p-0.5 border rounded text-center">
+              `}
+            </label>
+
+            <!-- Partner 2 Checkbox & Day -->
+            <label class="flex items-center gap-2 p-2 rounded-lg bg-white border border-slate-200 cursor-pointer ${isFutureMonth ? 'pointer-events-none' : ''}">
+              <input type="checkbox" data-month="${monthKey}" data-partner="partner2" onchange="updateBackfillCount()" ${existingP2 ? 'checked disabled' : ''} ${isFutureMonth ? 'disabled' : ''} class="backfill-checkbox text-pink-600 rounded">
+              <span class="font-semibold text-pink-700">${p2}</span>
+              <span class="text-slate-500 font-medium">(${target.toLocaleString()})</span>
+              ${existingP2 ? '<span class="text-emerald-600 text-[10px] font-bold">✓ Saved</span>' : `
+                <span class="text-slate-400 text-[10px]">Day:</span>
+                <input type="number" min="1" max="28" value="5" data-day-month="${monthKey}-p2" class="w-11 text-[11px] p-0.5 border rounded text-center">
+              `}
+            </label>
+
+          </div>
+        `;
+        container.appendChild(row);
+      }
+
+      updateBackfillCount();
+    }
+
+    function toggleAllBackfill(p1Check, p2Check) {
+      const checkboxes = document.querySelectorAll('.backfill-checkbox:not(:disabled)');
+      checkboxes.forEach(cb => {
+        const partner = cb.getAttribute('data-partner');
+        if (partner === 'partner1' && p1Check) cb.checked = true;
+        if (partner === 'partner2' && p2Check) cb.checked = true;
+      });
+      updateBackfillCount();
+    }
+
+    function clearAllBackfill() {
+      const checkboxes = document.querySelectorAll('.backfill-checkbox:not(:disabled)');
+      checkboxes.forEach(cb => cb.checked = false);
+      updateBackfillCount();
+    }
+
+    function updateBackfillCount() {
+      const checked = document.querySelectorAll('.backfill-checkbox:checked:not(:disabled)').length;
+      document.getElementById('backfillSummaryCount').textContent = `${checked} past deposit(s) ready to insert`;
+    }
+
+    async function submitHistoricalBackfill() {
+      const checkedBoxes = Array.from(document.querySelectorAll('.backfill-checkbox:checked:not(:disabled)'));
+      if (checkedBoxes.length === 0) {
+        showToast("Please select at least one month to backfill", "⚠️");
+        return;
+      }
+
+      const target = appData.settings.monthlyTarget || 10000;
+      const entries = [];
+
+      checkedBoxes.forEach(cb => {
+        const monthKey = cb.getAttribute('data-month');
+        const partner = cb.getAttribute('data-partner');
+        const pKey = partner === 'partner1' ? 'p1' : 'p2';
+        const dayInput = document.querySelector(`input[data-day-month="${monthKey}-${pKey}"]`);
+        const day = dayInput ? String(dayInput.value).padStart(2, '0') : "05";
+
+        const pName = partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+        const [yr, mn] = monthKey.split('-');
+        const dateIso = new Date(`${yr}-${mn}-${day}T10:00:00`).toISOString();
+
+        entries.push({
+          partner,
+          amount: target,
+          monthKey,
+          date: dateIso,
+          note: `Monthly saving for ${monthKey} by ${pName}`
+        });
+      });
+
+      if (isConnectedToServer) {
+        try {
+          const res = await fetch('/api/historical-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries })
+          });
+          if (res.ok) {
+            closeHistoricalBackfillModal();
+            showToast(`Successfully backfilled ${entries.length} past deposits!`, "🎉");
+            await fetchAppData();
+            return;
+          }
+        } catch(e) {
+          console.error(e);
+        }
+      }
+
+      // Offline handling
+      entries.forEach(item => {
+        appData.transactions.push({
+          id: 'tx_hist_' + Math.random().toString(36).slice(2, 9),
+          type: 'deposit',
+          partner: item.partner,
+          amount: item.amount,
+          monthKey: item.monthKey,
+          date: item.date,
+          note: item.note
+        });
+      });
+
+      saveToLocalStorage();
+      recomputeClientSummary();
+      closeHistoricalBackfillModal();
+      showToast(`Successfully backfilled ${entries.length} past deposits!`, "🎉");
+      renderAll();
+    }
+
+    // ================= LOANS SECTION =================
+    function renderLoans() {
+      const container = document.getElementById('loansListContainer');
+      container.innerHTML = '';
+
+      const activeLoans = (appData.loans || []).filter(l => l.status === 'active' && l.remainingAmount > 0);
+
+      if (activeLoans.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p class="font-medium text-slate-600">No active loans outstanding!</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Both partners are completely loan-free.</p>
+          </div>
+        `;
+        return;
+      }
+
+      activeLoans.forEach(loan => {
+        const pName = loan.partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+        const pColor = loan.partner === 'partner1' ? 'text-blue-700 bg-blue-50 border-blue-200' : 'text-pink-700 bg-pink-50 border-pink-200';
+
+        const card = document.createElement('div');
+        card.className = 'p-4 rounded-xl border border-amber-200 bg-amber-50/30 flex flex-col justify-between space-y-2';
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold px-2 py-0.5 rounded-md border ${pColor}">${pName}</span>
+            <span class="text-xs font-bold text-rose-600">${fmtCur(loan.remainingAmount)} owed</span>
+          </div>
+          <div class="text-xs text-slate-700 font-medium">${loan.reason || 'Personal loan'}</div>
+          <div class="text-[11px] text-slate-500 space-y-0.5">
+            <div>Taken: <span class="font-medium text-slate-700">${fmtDateTime(loan.date)}</span></div>
+            ${loan.dueDate ? `<div>Due: <span class="font-semibold text-amber-700">${loan.dueDate}</span></div>` : ''}
+          </div>
+          <div class="pt-2 border-t border-amber-200/60 flex items-center justify-between">
+            <span class="text-[11px] text-slate-500">Original: ${fmtCur(loan.originalAmount)}</span>
+            <button onclick="openRepayModal('${loan.id}')" class="text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-3 py-1 rounded-lg transition">
+              Repay This Loan
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // ================= TRANSACTION HISTORY =================
+    function renderTransactions() {
+      const tbody = document.getElementById('transactionsTableBody');
+      tbody.innerHTML = '';
+
+      const typeFilter = document.getElementById('filterType').value;
+      const partnerFilter = document.getElementById('filterPartner').value;
+      const yearFilter = document.getElementById('filterYear')?.value || 'all';
+
+      let filtered = [...appData.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      if (typeFilter !== 'all') {
+        filtered = filtered.filter(t => t.type === typeFilter);
+      }
+      if (partnerFilter !== 'all') {
+        filtered = filtered.filter(t => t.partner === partnerFilter);
+      }
+      if (yearFilter !== 'all') {
+        filtered = filtered.filter(t => (t.date || '').startsWith(yearFilter));
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-8 text-slate-400 text-xs">
+              No transactions match the selected filter.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(tx => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50/80 transition';
+
+        const pName = tx.partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+        const pBadge = tx.partner === 'partner1' ? 'text-blue-700 bg-blue-50' : 'text-pink-700 bg-pink-50';
+
+        let typeBadge = '';
+        let amtClass = 'text-slate-900';
+        let amtPrefix = '';
+
+        if (tx.type === 'deposit') {
+          typeBadge = '<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">DEPOSIT</span>';
+          amtClass = 'text-emerald-700 font-bold';
+          amtPrefix = '+';
+        } else if (tx.type === 'loan') {
+          typeBadge = '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold text-[10px]">LOAN TAKEN</span>';
+          amtClass = 'text-rose-600 font-bold';
+          amtPrefix = '-';
+        } else if (tx.type === 'repayment') {
+          typeBadge = '<span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-semibold text-[10px]">REPAYMENT</span>';
+          amtClass = 'text-blue-700 font-bold';
+          amtPrefix = '+';
+        }
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">${fmtDateTime(tx.date)}</td>
+          <td class="py-3 px-4"><span class="px-2 py-0.5 rounded-md font-semibold text-[11px] ${pBadge}">${pName}</span></td>
+          <td class="py-3 px-4">${typeBadge}</td>
+          <td class="py-3 px-4 text-slate-600 max-w-xs truncate" title="${tx.note || ''}">${tx.note || '--'}</td>
+          <td class="py-3 px-4 text-right ${amtClass}">${amtPrefix}${fmtCur(tx.amount)}</td>
+          <td class="py-3 px-4 text-center">
+            <button onclick="deleteTransaction('${tx.id}')" class="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition" title="Delete Entry">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ================= SINGLE DEPOSIT MODAL LOGIC =================
+    function onDepositMonthInputChange(val) {
+      if (val) {
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        if (val > currentMonthKey) {
+          showToast("Future months are not allowed", "⚠️");
+          val = currentMonthKey;
+          document.getElementById('depositMonthKey').value = val;
+        }
+        // Auto update depositDateTime to day 5 of that month
+        document.getElementById('depositDateTime').value = `${val}-05T10:00`;
+      }
+    }
+
+    function onDepositDateTimeInputChange(val) {
+      if (val) {
+        const now = new Date();
+        const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        if (val > localNow) {
+          showToast("Future dates are not allowed", "⚠️");
+          document.getElementById('depositDateTime').value = localNow;
+          val = localNow;
+        }
+        document.getElementById('depositMonthKey').value = val.slice(0, 7);
+      }
+    }
+
+    function openDepositModal(partner = 'partner1', customDateTime = null) {
+      document.querySelector(`input[name="depositPartner"][value="${partner}"]`).checked = true;
+      document.getElementById('depositAmount').value = appData.settings.monthlyTarget || 10000;
+
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+      if (customDateTime) {
+        const safeDate = customDateTime > localNow ? localNow : customDateTime;
+        document.getElementById('depositDateTime').value = safeDate;
+        document.getElementById('depositMonthKey').value = safeDate.slice(0, 7);
+      } else {
+        document.getElementById('depositMonthKey').value = currentMonth;
+        document.getElementById('depositDateTime').value = localNow;
+      }
+
+      document.getElementById('depositNote').value = '';
+      enforceMaxDates();
+      document.getElementById('depositModal').classList.remove('hidden');
+    }
+
+    function closeDepositModal() {
+      document.getElementById('depositModal').classList.add('hidden');
+    }
+
+    async function handleDepositSubmit(e) {
+      e.preventDefault();
+      const partner = document.querySelector('input[name="depositPartner"]:checked').value;
+      const amount = Number(document.getElementById('depositAmount').value) || 10000;
+      const monthKey = document.getElementById('depositMonthKey').value;
+      const dateTimeVal = document.getElementById('depositDateTime').value;
+      const noteVal = document.getElementById('depositNote').value.trim();
+
+      // Check future date
+      const fullDate = dateTimeVal ? new Date(dateTimeVal).toISOString() : new Date().toISOString();
+      if (new Date(fullDate) > new Date(Date.now() + 60000)) {
+        showToast("Future dates are not allowed. Only past dates or today can be selected.", "⛔");
+        return;
+      }
+
+      const pName = partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+
+      if (isConnectedToServer) {
+        try {
+          const res = await fetch('/api/deposit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ partner, amount, monthKey, date: fullDate, note: noteVal })
+          });
+          const resData = await res.json();
+          if (res.ok && resData.success) {
+            closeDepositModal();
+            showToast(`Deposit of ${fmtCur(amount)} recorded for ${pName}!`);
+            await fetchAppData();
+            return;
+          } else if (resData.error) {
+            showToast(resData.error, "⛔");
+            return;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      // Offline / LocalStorage handling
+      const newTx = {
+        id: 'tx_' + Date.now(),
+        type: 'deposit',
+        partner,
+        amount,
+        monthKey,
+        date: fullDate,
+        note: noteVal || `Monthly saving deposit by ${pName}`
+      };
+
+      appData.transactions.push(newTx);
+      saveToLocalStorage();
+      recomputeClientSummary();
+      closeDepositModal();
+      showToast(`Deposit of ${fmtCur(amount)} recorded for ${pName}!`);
+      renderAll();
+    }
+
+    // ================= LOAN MODAL LOGIC =================
+    function openLoanModal() {
+      const now = new Date();
+      const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      document.getElementById('loanDateTime').value = localIso;
+      document.getElementById('loanAmount').value = '';
+      document.getElementById('loanReason').value = '';
+      document.getElementById('loanDueDate').value = '';
+      enforceMaxDates();
+      document.getElementById('loanModal').classList.remove('hidden');
+    }
+
+    function closeLoanModal() {
+      document.getElementById('loanModal').classList.add('hidden');
+    }
+
+    async function handleLoanSubmit(e) {
+      e.preventDefault();
+      const partner = document.querySelector('input[name="loanPartner"]:checked').value;
+      const amount = Number(document.getElementById('loanAmount').value);
+      const reason = document.getElementById('loanReason').value.trim();
+      const dateTimeVal = document.getElementById('loanDateTime').value;
+      const dueDate = document.getElementById('loanDueDate').value;
+
+      if (!amount || amount <= 0) return;
+
+      const fullDate = dateTimeVal ? new Date(dateTimeVal).toISOString() : new Date().toISOString();
+      if (new Date(fullDate) > new Date(Date.now() + 60000)) {
+        showToast("Future dates are not allowed for loans taken.", "⛔");
+        return;
+      }
+
+      const pName = partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+
+      if (isConnectedToServer) {
+        try {
+          const res = await fetch('/api/loan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ partner, amount, reason, date: fullDate, dueDate })
+          });
+          const resData = await res.json();
+          if (res.ok && resData.success) {
+            closeLoanModal();
+            showToast(`Loan of ${fmtCur(amount)} recorded for ${pName}!`, '⚠️');
+            await fetchAppData();
+            return;
+          } else if (resData.error) {
+            showToast(resData.error, "⛔");
+            return;
+          }
+        } catch(err) {
+          console.error(err);
+        }
+      }
+
+      // Offline / LocalStorage handling
+      const loanId = 'loan_' + Date.now();
+      const loanObj = {
+        id: loanId,
+        partner,
+        originalAmount: amount,
+        remainingAmount: amount,
+        date: fullDate,
+        reason: reason || "Personal Loan",
+        dueDate: dueDate || null,
+        status: 'active',
+        repayments: []
+      };
+
+      const newTx = {
+        id: 'tx_' + Date.now(),
+        type: 'loan',
+        loanId,
+        partner,
+        amount,
+        date: fullDate,
+        monthKey: fullDate.slice(0, 7),
+        note: `Loan taken: ${fmtCur(amount)} by ${pName} (${reason})`
+      };
+
+      appData.loans = appData.loans || [];
+      appData.loans.push(loanObj);
+      appData.transactions.push(newTx);
+      saveToLocalStorage();
+      recomputeClientSummary();
+      closeLoanModal();
+      showToast(`Loan of ${fmtCur(amount)} recorded for ${pName}!`, '⚠️');
+      renderAll();
+    }
+
+    // ================= REPAY LOAN MODAL LOGIC =================
+    function openRepayModal(preselectedLoanId = null) {
+      const activeLoans = (appData.loans || []).filter(l => l.status === 'active' && l.remainingAmount > 0);
+      const select = document.getElementById('repayLoanSelect');
+      select.innerHTML = '';
+
+      if (activeLoans.length === 0) {
+        alert("There are no active loans to repay!");
+        return;
+      }
+
+      activeLoans.forEach(loan => {
+        const pName = loan.partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+        const opt = document.createElement('option');
+        opt.value = loan.id;
+        opt.textContent = `${pName} - ${loan.reason} (${fmtCur(loan.remainingAmount)} left)`;
+        if (preselectedLoanId && loan.id === preselectedLoanId) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      onRepayLoanSelected(select.value);
+
+      const now = new Date();
+      const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      document.getElementById('repayDateTime').value = localIso;
+      document.getElementById('repayNote').value = '';
+      enforceMaxDates();
+      document.getElementById('repayModal').classList.remove('hidden');
+    }
+
+    function onRepayLoanSelected(loanId) {
+      const loan = (appData.loans || []).find(l => l.id === loanId);
+      if (!loan) return;
+      const pName = loan.partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+      document.getElementById('repayBorrowerText').textContent = pName;
+      document.getElementById('repayReasonText').textContent = loan.reason || 'Personal Loan';
+      document.getElementById('repayRemainingText').textContent = fmtCur(loan.remainingAmount);
+      document.getElementById('repayAmount').value = loan.remainingAmount;
+    }
+
+    function closeRepayModal() {
+      document.getElementById('repayModal').classList.add('hidden');
+    }
+
+    async function handleRepaySubmit(e) {
+      e.preventDefault();
+      const loanId = document.getElementById('repayLoanSelect').value;
+      const amount = Number(document.getElementById('repayAmount').value);
+      const dateTimeVal = document.getElementById('repayDateTime').value;
+      const noteVal = document.getElementById('repayNote').value.trim();
+
+      if (!loanId || !amount || amount <= 0) return;
+      const fullDate = dateTimeVal ? new Date(dateTimeVal).toISOString() : new Date().toISOString();
+
+      if (new Date(fullDate) > new Date(Date.now() + 60000)) {
+        showToast("Future dates are not allowed for loan repayments.", "⛔");
+        return;
+      }
+
+      if (isConnectedToServer) {
+        try {
+          const res = await fetch('/api/loan/repay', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loanId, amount, date: fullDate, note: noteVal })
+          });
+          const resData = await res.json();
+          if (res.ok && resData.success) {
+            closeRepayModal();
+            showToast(`Repayment of ${fmtCur(amount)} recorded!`, '🎉');
+            await fetchAppData();
+            return;
+          } else if (resData.error) {
+            showToast(resData.error, "⛔");
+            return;
+          }
+        } catch(err) {
+          console.error(err);
+        }
+      }
+
+      // Offline / LocalStorage handling
+      const loan = (appData.loans || []).find(l => l.id === loanId);
+      if (!loan) return;
+
+      const actualRepay = Math.min(amount, loan.remainingAmount);
+      loan.remainingAmount -= actualRepay;
+      if (loan.remainingAmount <= 0) {
+        loan.status = 'repaid';
+        loan.remainingAmount = 0;
+      }
+
+      const pName = loan.partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+      const newTx = {
+        id: 'tx_' + Date.now(),
+        type: 'repayment',
+        loanId: loan.id,
+        partner: loan.partner,
+        amount: actualRepay,
+        date: fullDate,
+        monthKey: fullDate.slice(0, 7),
+        note: `Loan repayment of ${fmtCur(actualRepay)} by ${pName} (${loan.reason})`
+      };
+
+      appData.transactions.push(newTx);
+      saveToLocalStorage();
+      recomputeClientSummary();
+      closeRepayModal();
+      showToast(`Repayment of ${fmtCur(actualRepay)} recorded!`, '🎉');
+      renderAll();
+    }
+
+    // Delete Transaction
+    async function deleteTransaction(txId) {
+      if (!confirm("Are you sure you want to delete this transaction record?")) return;
+
+      if (isConnectedToServer) {
+        try {
+          const res = await fetch(`/api/transaction/${txId}`, { method: 'DELETE' });
+          if (res.ok) {
+            showToast("Transaction deleted");
+            await fetchAppData();
+            return;
+          }
+        } catch(e) {
+          console.error(e);
+        }
+      }
+
+      // Offline fallback
+      const tx = appData.transactions.find(t => t.id === txId);
+      if (tx && tx.type === 'loan' && tx.loanId) {
+        appData.loans = (appData.loans || []).filter(l => l.id !== tx.loanId);
+      }
+      appData.transactions = appData.transactions.filter(t => t.id !== txId);
+      saveToLocalStorage();
+      recomputeClientSummary();
+      showToast("Transaction deleted");
+      renderAll();
+    }
+
+    // Settings Modal
+    function openSettingsModal() {
+      document.getElementById('settingP1Name').value = appData.settings.partner1Name || "Partner 1";
+      document.getElementById('settingP2Name').value = appData.settings.partner2Name || "Partner 2";
+      document.getElementById('settingMonthlyTarget').value = appData.settings.monthlyTarget || 10000;
+      document.getElementById('settingCurrency').value = appData.settings.currency || "RWF";
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    async function handleSettingsSubmit(e) {
+      e.preventDefault();
+      const p1 = document.getElementById('settingP1Name').value.trim();
+      const p2 = document.getElementById('settingP2Name').value.trim();
+      const target = Number(document.getElementById('settingMonthlyTarget').value) || 10000;
+      const currency = document.getElementById('settingCurrency').value.trim() || "RWF";
+
+      const updated = {
+        partner1Name: p1,
+        partner2Name: p2,
+        monthlyTarget: target,
+        currency: currency
+      };
+
+      if (isConnectedToServer) {
+        try {
+          const res = await fetch('/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updated)
+          });
+          if (res.ok) {
+            closeSettingsModal();
+            showToast("Settings updated successfully!");
+            await fetchAppData();
+            return;
+          }
+        } catch(err) {
+          console.error(err);
+        }
+      }
+
+      // Offline
+      appData.settings = { ...appData.settings, ...updated };
+      saveToLocalStorage();
+      recomputeClientSummary();
+      closeSettingsModal();
+      showToast("Settings updated!");
+      renderAll();
+    }
+
+    // Reset Confirm
+    async function resetDatabaseConfirm() {
+      if (!confirm("⚠️ This will reset all records and history to initial defaults. Are you sure?")) return;
+
+      if (isConnectedToServer) {
+        await fetch('/api/reset', { method: 'POST' });
+        closeSettingsModal();
+        showToast("Database reset to defaults");
+        await fetchAppData();
+        return;
+      }
+
+      localStorage.removeItem('duo_savings_data');
+      loadFromLocalStorage();
+      recomputeClientSummary();
+      closeSettingsModal();
+      showToast("Data reset to defaults");
+      renderAll();
+    }
+
+    // Export CSV
+    function exportToCSV() {
+      let csv = "Date,Time,Partner,Type,Amount (RWF),Notes\n";
+      appData.transactions.forEach(tx => {
+        const d = new Date(tx.date);
+        const dateStr = d.toLocaleDateString('en-US');
+        const timeStr = d.toLocaleTimeString('en-US');
+        const pName = tx.partner === 'partner1' ? appData.settings.partner1Name : appData.settings.partner2Name;
+        const cleanNote = (tx.note || '').replace(/"/g, '""');
+        csv += `"${dateStr}","${timeStr}","${pName}","${tx.type}",${tx.amount},"${cleanNote}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `couple_savings_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    }
+
+    // Export JSON Backup
+    function exportJSONBackup() {
+      const backup = JSON.stringify(appData, null, 2);
+      const blob = new Blob([backup], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `duosave_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      showToast("Backup file downloaded!");
+    }
+
+    // Initialize App on DOM Ready
+    window.addEventListener('DOMContentLoaded', () => {
+      enforceMaxDates();
+      syncMonthPickerWithCalendar();
+      fetchAppData();
+
+      // Register PWA Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration error:', err));
+      }
+    });
+  </script>
+</body>
+</html>
