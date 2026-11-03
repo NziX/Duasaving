@@ -1,4 +1,9 @@
-const crypto = require('node:crypto');
+const crypto = require('crypto');
+
+function uuid() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+}
 
 const DEFAULT_DATA = {
   settings: {
@@ -337,7 +342,7 @@ module.exports = async (req, res) => {
       const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
 
       const newTx = {
-        id: 'tx_' + crypto.randomUUID(),
+        id: 'tx_' + uuid(),
         type: 'deposit',
         partner,
         amount,
@@ -367,7 +372,7 @@ module.exports = async (req, res) => {
         const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
 
         const newTx = {
-          id: 'tx_' + crypto.randomUUID(),
+          id: 'tx_' + uuid(),
           type: 'deposit',
           partner,
           amount,
@@ -401,7 +406,7 @@ module.exports = async (req, res) => {
 
       const loanDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
       const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
-      const loanId = 'loan_' + crypto.randomUUID();
+      const loanId = 'loan_' + uuid();
 
       const loanObj = {
         id: loanId,
@@ -416,7 +421,7 @@ module.exports = async (req, res) => {
       };
 
       const newTx = {
-        id: 'tx_' + crypto.randomUUID(),
+        id: 'tx_' + uuid(),
         type: 'loan',
         loanId,
         partner,
@@ -464,7 +469,7 @@ module.exports = async (req, res) => {
       }
 
       const repaymentRecord = {
-        id: 'repay_' + crypto.randomUUID(),
+        id: 'repay_' + uuid(),
         amount: actualRepay,
         date: repayDate,
         note: body.note || `Repayment on loan "${loan.reason}"`
@@ -475,7 +480,7 @@ module.exports = async (req, res) => {
 
       const partnerName = loan.partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
       const newTx = {
-        id: 'tx_' + crypto.randomUUID(),
+        id: 'tx_' + uuid(),
         type: 'repayment',
         loanId: loan.id,
         partner: loan.partner,
