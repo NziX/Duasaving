@@ -155,13 +155,14 @@ async function saveAccountData(code, data) {
 
   if (kvUrl && kvToken) {
     try {
-      await fetch(`${kvUrl}/set/duosave_acc_${code}`, {
+      const payload = typeof data === 'string' ? data : JSON.stringify(data);
+      await fetch(kvUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${kvToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(typeof data === 'string' ? data : JSON.stringify(data))
+        body: JSON.stringify(["SET", `duosave_acc_${code}`, payload])
       });
       return true;
     } catch (err) {
