@@ -1,11 +1,11 @@
-const crypto = require('crypto');
+var http = require('http');
+var https = require('https');
 
 function uuid() {
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 }
 
-const DEFAULT_DATA = {
+var DEFAULT_DATA = {
   settings: {
     partner1Name: "Partner 1",
     partner2Name: "Partner 2",
@@ -20,23 +20,50 @@ const DEFAULT_DATA = {
 // Check if date is in the future
 function isFutureDate(dateStr) {
   if (!dateStr) return false;
-  const d = new Date(dateStr).getTime();
-  const now = Date.now() + 60000;
+  var d = new Date(dateStr).getTime();
+  var now = Date.now() + 60000;
   return d > now;
+}
+
+// HTTP helper for Upstash REST API calls
+function kvRequest(method, urlStr, headers, body) {
+  return new Promise(function(resolve, reject) {
+    var parsed = new URL(urlStr);
+    var mod = parsed.protocol === 'https:' ? https : http;
+    var opts = {
+      hostname: parsed.hostname,
+      port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: method,
+      headers: headers
+    };
+    var req = mod.request(opts, function(res) {
+      var chunks = [];
+      res.on('data', function(c) { chunks.push(c); });
+      res.on('end', function() {
+        var text = Buffer.concat(chunks).toString();
+        try { resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, json: JSON.parse(text) }); }
+        catch (e) { resolve({ ok: false, status: res.statusCode, json: null }); }
+      });
+    });
+    req.on('error', function(err) { reject(err); });
+    if (body) req.write(typeof body === 'string' ? body : JSON.stringify(body));
+    req.end();
+  });
 }
 
 // Compute statistics and summary
 function computeSummary(data) {
-  let partner1Deposits = 0;
-  let partner2Deposits = 0;
-  let totalDeposits = 0;
-  let partner1LoansTaken = 0;
-  let partner2LoansTaken = 0;
-  let partner1LoansRepaid = 0;
-  let partner2LoansRepaid = 0;
+  var partner1Deposits = 0;
+  var partner2Deposits = 0;
+  var totalDeposits = 0;
+  var partner1LoansTaken = 0;
+  var partner2LoansTaken = 0;
+  var partner1LoansRepaid = 0;
+  var partner2LoansRepaid = 0;
 
-  (data.transactions || []).forEach(tx => {
-    const amt = Number(tx.amount) || 0;
+  (data.transactions || []).forEach(function(tx) {
+    var amt = Number(tx.amount) || 0;
     if (tx.type === 'deposit') {
       totalDeposits += amt;
       if (tx.partner === 'partner1') partner1Deposits += amt;
@@ -50,26 +77,26 @@ function computeSummary(data) {
     }
   });
 
-  const totalLoansTaken = partner1LoansTaken + partner2LoansTaken;
-  const totalLoansRepaid = partner1LoansRepaid + partner2LoansRepaid;
-  const currentBankBalance = (totalDeposits + totalLoansRepaid) - totalLoansTaken;
+  var totalLoansTaken = partner1LoansTaken + partner2LoansTaken;
+  var totalLoansRepaid = partner1LoansRepaid + partner2LoansRepaid;
+  var currentBankBalance = (totalDeposits + totalLoansRepaid) - totalLoansTaken;
 
-  const partner1LoanBalance = Math.max(0, partner1LoansTaken - partner1LoansRepaid);
-  const partner2LoanBalance = Math.max(0, partner2LoansTaken - partner2LoansRepaid);
-  const totalOutstandingLoans = partner1LoanBalance + partner2LoanBalance;
+  var partner1LoanBalance = Math.max(0, partner1LoansTaken - partner1LoansRepaid);
+  var partner2LoanBalance = Math.max(0, partner2LoansTaken - partner2LoansRepaid);
+  var totalOutstandingLoans = partner1LoanBalance + partner2LoanBalance;
 
-  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  var currentMonthKey = new Date().toISOString().slice(0, 7);
 
-  const getMonthlyStatus = (monthKey) => {
-    const target = data.settings.monthlyTarget || 10000;
-    const monthDeposits = (data.transactions || []).filter(tx => tx.type === 'deposit' && tx.monthKey === monthKey);
-    const p1Dep = monthDeposits.filter(t => t.partner === 'partner1');
-    const p2Dep = monthDeposits.filter(t => t.partner === 'partner2');
-    const p1Total = p1Dep.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-    const p2Total = p2Dep.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  var getMonthlyStatus = function(monthKey) {
+    var target = data.settings.monthlyTarget || 10000;
+    var monthDeposits = (data.transactions || []).filter(function(tx) { return tx.type === 'deposit' && tx.monthKey === monthKey; });
+    var p1Dep = monthDeposits.filter(function(t) { return t.partner === 'partner1'; });
+    var p2Dep = monthDeposits.filter(function(t) { return t.partner === 'partner2'; });
+    var p1Total = p1Dep.reduce(function(sum, t) { return sum + Number(t.amount || 0); }, 0);
+    var p2Total = p2Dep.reduce(function(sum, t) { return sum + Number(t.amount || 0); }, 0);
 
     return {
-      monthKey,
+      monthKey: monthKey,
       targetPerPartner: target,
       partner1: {
         total: p1Total,
@@ -86,14 +113,14 @@ function computeSummary(data) {
     };
   };
 
-  const yearlyBreakdown = {};
-  (data.transactions || []).forEach(tx => {
+  var yearlyBreakdown = {};
+  (data.transactions || []).forEach(function(tx) {
     if (tx.type === 'deposit') {
-      const yr = (tx.date || '').slice(0, 4) || new Date().getFullYear().toString();
+      var yr = (tx.date || '').slice(0, 4) || new Date().getFullYear().toString();
       if (!yearlyBreakdown[yr]) {
         yearlyBreakdown[yr] = { year: yr, total: 0, partner1: 0, partner2: 0 };
       }
-      const amt = Number(tx.amount) || 0;
+      var amt = Number(tx.amount) || 0;
       yearlyBreakdown[yr].total += amt;
       if (tx.partner === 'partner1') yearlyBreakdown[yr].partner1 += amt;
       else if (tx.partner === 'partner2') yearlyBreakdown[yr].partner2 += amt;
@@ -101,9 +128,9 @@ function computeSummary(data) {
   });
 
   return {
-    currentBankBalance,
-    totalDeposits,
-    totalOutstandingLoans,
+    currentBankBalance: currentBankBalance,
+    totalDeposits: totalDeposits,
+    totalOutstandingLoans: totalOutstandingLoans,
     partner1: {
       totalDeposited: partner1Deposits,
       activeLoanOwed: partner1LoanBalance,
@@ -115,99 +142,93 @@ function computeSummary(data) {
       netSavings: partner2Deposits - partner2LoanBalance
     },
     currentMonthStatus: getMonthlyStatus(currentMonthKey),
-    yearlyBreakdown
+    yearlyBreakdown: yearlyBreakdown
   };
 }
 
-// In-memory accounts storage fallback
-global._inMemoryAccounts = global._inMemoryAccounts || {};
+// Read account database from Upstash Redis by 6-digit code
+function readAccountData(code) {
+  if (!code || !/^\d{6}$/.test(code)) return Promise.resolve(null);
 
-// Read account database from Vercel KV / Upstash or memory by 6-digit code
-async function readAccountData(code) {
-  if (!code || !/^\d{6}$/.test(code)) return null;
-
-  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  var kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  var kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (kvUrl && kvToken) {
-    try {
-      const res = await fetch(`${kvUrl}/get/duosave_acc_${code}`, {
-        headers: { Authorization: `Bearer ${kvToken}` }
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json && json.result) {
-          const parsed = typeof json.result === 'string' ? JSON.parse(json.result) : json.result;
-          return parsed;
-        }
+    return kvRequest('GET', kvUrl + '/get/duosave_acc_' + code, {
+      Authorization: 'Bearer ' + kvToken
+    }, null).then(function(res) {
+      if (res.ok && res.json && res.json.result) {
+        var parsed = typeof res.json.result === 'string' ? JSON.parse(res.json.result) : res.json.result;
+        return parsed;
       }
-    } catch (err) {
+      return null;
+    }).catch(function(err) {
       console.error("KV read error:", err);
-    }
+      return null;
+    });
   }
 
-  return global._inMemoryAccounts[code] || null;
+  return Promise.resolve(null);
 }
 
-// Save account database to Vercel KV / Upstash or memory by 6-digit code
-async function saveAccountData(code, data) {
-  if (!code || !/^\d{6}$/.test(code)) return false;
+// Save account database to Upstash Redis by 6-digit code
+function saveAccountData(code, data) {
+  if (!code || !/^\d{6}$/.test(code)) return Promise.resolve(false);
 
-  global._inMemoryAccounts[code] = data;
-
-  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  var kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  var kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (kvUrl && kvToken) {
-    try {
-      const payload = typeof data === 'string' ? data : JSON.stringify(data);
-      await fetch(kvUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${kvToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(["SET", `duosave_acc_${code}`, payload])
-      });
+    var payload = typeof data === 'string' ? data : JSON.stringify(data);
+    return kvRequest('POST', kvUrl, {
+      Authorization: 'Bearer ' + kvToken,
+      'Content-Type': 'application/json'
+    }, JSON.stringify(["SET", "duosave_acc_" + code, payload])).then(function() {
       return true;
-    } catch (err) {
+    }).catch(function(err) {
       console.error("KV write error:", err);
-    }
+      return true;
+    });
   }
-  return true;
+  return Promise.resolve(true);
 }
 
-// Helper to safely parse incoming JSON body from any runtime
-async function parseRequestBody(req) {
+// Helper to safely parse incoming JSON body
+function parseRequestBody(req) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
-    return {};
+    return Promise.resolve({});
   }
-  if (req.body && typeof req.body === 'object') return req.body;
+  if (req.body && typeof req.body === 'object') return Promise.resolve(req.body);
   if (typeof req.body === 'string') {
-    try { return JSON.parse(req.body); } catch (e) { return {}; }
+    try { return Promise.resolve(JSON.parse(req.body)); } catch (e) { return Promise.resolve({}); }
   }
   if (req.readableEnded || req.complete) {
-    return {};
+    return Promise.resolve({});
   }
-  return new Promise((resolve) => {
-    let data = '';
-    const timer = setTimeout(() => resolve({}), 800); // 800ms safety guard
-    req.on('data', chunk => { data += chunk.toString(); });
-    req.on('end', () => {
+  return new Promise(function(resolve) {
+    var data = '';
+    var timer = setTimeout(function() { resolve({}); }, 800);
+    req.on('data', function(chunk) { data += chunk.toString(); });
+    req.on('end', function() {
       clearTimeout(timer);
       try { resolve(data ? JSON.parse(data) : {}); }
       catch (e) { resolve({}); }
     });
-    req.on('error', () => {
+    req.on('error', function() {
       clearTimeout(timer);
       resolve({});
     });
   });
 }
 
+// Safe accessor helper
+function safeStr(val) {
+  return val && typeof val === 'string' ? val.trim() : '';
+}
+
 // Vercel Serverless Function Handler
-module.exports = async (req, res) => {
-  // Polyfill res.status and res.json if running on raw Node http server
+module.exports = function(req, res) {
+  // Polyfill res.status and res.json if needed
   if (typeof res.status !== 'function') {
     res.status = function(code) {
       this.statusCode = code;
@@ -231,20 +252,19 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  let pathname = parsedUrl.pathname;
+  var parsedUrl = new URL(req.url, 'http://' + (req.headers.host || 'localhost'));
+  var pathname = parsedUrl.pathname;
   if (pathname.endsWith('/') && pathname.length > 1) {
     pathname = pathname.slice(0, -1);
   }
 
-  const body = await parseRequestBody(req);
-  const code = String(req.headers['x-account-code'] || parsedUrl.searchParams.get('code') || body.code || '').trim();
+  return parseRequestBody(req).then(function(body) {
+    var code = String(req.headers['x-account-code'] || parsedUrl.searchParams.get('code') || body.code || '').trim();
 
-  try {
     // 1. CREATE ACCOUNT: POST /api/account/create
     if (req.method === 'POST' && pathname === '/api/account/create') {
-      let targetCode = (body.code || '').trim();
-      
+      var targetCode = safeStr(body.code);
+
       // Auto-generate 6 digits if not provided
       if (!targetCode) {
         targetCode = String(Math.floor(100000 + Math.random() * 900000));
@@ -255,57 +275,58 @@ module.exports = async (req, res) => {
         return;
       }
 
-      const existing = await readAccountData(targetCode);
-      if (existing) {
-        res.status(400).json({ success: false, error: `Account with code ${targetCode} already exists. Please pick another code or log in.` });
-        return;
-      }
+      return readAccountData(targetCode).then(function(existing) {
+        if (existing) {
+          res.status(400).json({ success: false, error: "Account with code " + targetCode + " already exists. Please pick another code or log in." });
+          return;
+        }
 
-      const newAccount = {
-        code: targetCode,
-        createdAt: new Date().toISOString(),
-        settings: {
-          partner1Name: body.partner1Name?.trim() || "Partner 1",
-          partner2Name: body.partner2Name?.trim() || "Partner 2",
-          monthlyTarget: Number(body.monthlyTarget) || 10000,
-          currency: body.currency?.trim() || "RWF",
-          accountName: body.accountName?.trim() || "Joint Savings Account"
-        },
-        transactions: [],
-        loans: []
-      };
+        var newAccount = {
+          code: targetCode,
+          createdAt: new Date().toISOString(),
+          settings: {
+            partner1Name: safeStr(body.partner1Name) || "Partner 1",
+            partner2Name: safeStr(body.partner2Name) || "Partner 2",
+            monthlyTarget: Number(body.monthlyTarget) || 10000,
+            currency: safeStr(body.currency) || "RWF",
+            accountName: safeStr(body.accountName) || "Joint Savings Account"
+          },
+          transactions: [],
+          loans: []
+        };
 
-      await saveAccountData(targetCode, newAccount);
-      res.status(201).json({
-        success: true,
-        code: targetCode,
-        settings: newAccount.settings,
-        summary: computeSummary(newAccount)
+        return saveAccountData(targetCode, newAccount).then(function() {
+          res.status(201).json({
+            success: true,
+            code: targetCode,
+            settings: newAccount.settings,
+            summary: computeSummary(newAccount)
+          });
+        });
       });
-      return;
     }
 
     // 2. LOGIN / VERIFY ACCOUNT: POST /api/account/login
     if (req.method === 'POST' && pathname === '/api/account/login') {
-      const loginCode = (body.code || code || '').trim();
+      var loginCode = safeStr(body.code) || code;
       if (!loginCode || !/^\d{6}$/.test(loginCode)) {
         res.status(400).json({ success: false, error: "Please enter a valid 6-digit login code." });
         return;
       }
 
-      const account = await readAccountData(loginCode);
-      if (!account) {
-        res.status(404).json({ success: false, error: `Account code "${loginCode}" was not found. Please check with your partner or create a new account.` });
-        return;
-      }
+      return readAccountData(loginCode).then(function(account) {
+        if (!account) {
+          res.status(404).json({ success: false, error: 'Account code "' + loginCode + '" was not found. Please check with your partner or create a new account.' });
+          return;
+        }
 
-      res.status(200).json({
-        success: true,
-        code: loginCode,
-        settings: account.settings,
-        summary: computeSummary(account)
+        res.status(200).json({
+          success: true,
+          code: loginCode,
+          settings: account.settings,
+          summary: computeSummary(account)
+        });
       });
-      return;
     }
 
     // For all other routes, require a valid 6-digit code
@@ -314,238 +335,241 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const db = await readAccountData(code);
-    if (!db) {
-      res.status(404).json({ success: false, error: `Account code "${code}" not found. Please log in again.` });
-      return;
-    }
-
-    // Ensure structures
-    db.settings = db.settings || DEFAULT_DATA.settings;
-    db.transactions = db.transactions || [];
-    db.loans = db.loans || [];
-
-    // GET /api/data
-    if (req.method === 'GET' && pathname === '/api/data') {
-      const summary = computeSummary(db);
-      res.status(200).json({
-        success: true,
-        code,
-        settings: db.settings,
-        summary,
-        loans: db.loans,
-        transactions: db.transactions.sort((a, b) => new Date(b.date) - new Date(a.date))
-      });
-      return;
-    }
-
-    // POST /api/deposit
-    if (req.method === 'POST' && pathname === '/api/deposit') {
-      if (isFutureDate(body.date)) {
-        res.status(400).json({ success: false, error: "Future dates are not allowed. You can only record deposits for today or past dates." });
+    return readAccountData(code).then(function(db) {
+      if (!db) {
+        res.status(404).json({ success: false, error: 'Account code "' + code + '" not found. Please log in again.' });
         return;
       }
 
-      const partner = body.partner === 'partner2' ? 'partner2' : 'partner1';
-      const amount = Number(body.amount) || db.settings.monthlyTarget || 10000;
-      const depositDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
-      const monthKey = body.monthKey || depositDate.slice(0, 7);
-      const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
+      // Ensure structures
+      db.settings = db.settings || DEFAULT_DATA.settings;
+      db.transactions = db.transactions || [];
+      db.loans = db.loans || [];
 
-      const newTx = {
-        id: 'tx_' + uuid(),
-        type: 'deposit',
-        partner,
-        amount,
-        date: depositDate,
-        monthKey,
-        note: body.note || `Monthly deposit of ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName}`
-      };
+      // GET /api/data
+      if (req.method === 'GET' && pathname === '/api/data') {
+        var summary = computeSummary(db);
+        res.status(200).json({
+          success: true,
+          code: code,
+          settings: db.settings,
+          summary: summary,
+          loans: db.loans,
+          transactions: db.transactions.sort(function(a, b) { return new Date(b.date) - new Date(a.date); })
+        });
+        return;
+      }
 
-      db.transactions.push(newTx);
-      await saveAccountData(code, db);
+      // POST /api/deposit
+      if (req.method === 'POST' && pathname === '/api/deposit') {
+        if (isFutureDate(body.date)) {
+          res.status(400).json({ success: false, error: "Future dates are not allowed. You can only record deposits for today or past dates." });
+          return;
+        }
 
-      res.status(201).json({ success: true, transaction: newTx, summary: computeSummary(db) });
-      return;
-    }
+        var partner = body.partner === 'partner2' ? 'partner2' : 'partner1';
+        var amount = Number(body.amount) || db.settings.monthlyTarget || 10000;
+        var depositDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
+        var monthKey = body.monthKey || depositDate.slice(0, 7);
+        var partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
 
-    // POST /api/historical-batch
-    if (req.method === 'POST' && pathname === '/api/historical-batch') {
-      const entries = Array.isArray(body.entries) ? body.entries : [];
-      const added = [];
-
-      for (const item of entries) {
-        if (isFutureDate(item.date)) continue;
-        const partner = item.partner === 'partner2' ? 'partner2' : 'partner1';
-        const amount = Number(item.amount) || db.settings.monthlyTarget || 10000;
-        const depositDate = item.date ? new Date(item.date).toISOString() : new Date().toISOString();
-        const monthKey = item.monthKey || depositDate.slice(0, 7);
-        const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
-
-        const newTx = {
+        var newTx = {
           id: 'tx_' + uuid(),
           type: 'deposit',
-          partner,
-          amount,
+          partner: partner,
+          amount: amount,
           date: depositDate,
-          monthKey,
-          note: item.note || `Monthly deposit of ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName}`
+          monthKey: monthKey,
+          note: body.note || 'Monthly deposit of ' + amount.toLocaleString() + ' ' + db.settings.currency + ' by ' + partnerName
         };
 
         db.transactions.push(newTx);
-        added.push(newTx);
+        return saveAccountData(code, db).then(function() {
+          res.status(201).json({ success: true, transaction: newTx, summary: computeSummary(db) });
+        });
       }
 
-      await saveAccountData(code, db);
-      res.status(201).json({ success: true, count: added.length, summary: computeSummary(db) });
-      return;
-    }
+      // POST /api/historical-batch
+      if (req.method === 'POST' && pathname === '/api/historical-batch') {
+        var entries = Array.isArray(body.entries) ? body.entries : [];
+        var added = [];
 
-    // POST /api/loan
-    if (req.method === 'POST' && pathname === '/api/loan') {
-      if (isFutureDate(body.date)) {
-        res.status(400).json({ success: false, error: "Future dates are not allowed for loans taken." });
-        return;
+        for (var i = 0; i < entries.length; i++) {
+          var item = entries[i];
+          if (isFutureDate(item.date)) continue;
+          var bp = item.partner === 'partner2' ? 'partner2' : 'partner1';
+          var ba = Number(item.amount) || db.settings.monthlyTarget || 10000;
+          var bd = item.date ? new Date(item.date).toISOString() : new Date().toISOString();
+          var bm = item.monthKey || bd.slice(0, 7);
+          var bn = bp === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
+
+          var btx = {
+            id: 'tx_' + uuid(),
+            type: 'deposit',
+            partner: bp,
+            amount: ba,
+            date: bd,
+            monthKey: bm,
+            note: item.note || 'Monthly deposit of ' + ba.toLocaleString() + ' ' + db.settings.currency + ' by ' + bn
+          };
+
+          db.transactions.push(btx);
+          added.push(btx);
+        }
+
+        return saveAccountData(code, db).then(function() {
+          res.status(201).json({ success: true, count: added.length, summary: computeSummary(db) });
+        });
       }
 
-      const partner = body.partner === 'partner2' ? 'partner2' : 'partner1';
-      const amount = Number(body.amount);
-      if (!amount || amount <= 0) {
-        res.status(400).json({ success: false, error: "Invalid loan amount" });
-        return;
+      // POST /api/loan
+      if (req.method === 'POST' && pathname === '/api/loan') {
+        if (isFutureDate(body.date)) {
+          res.status(400).json({ success: false, error: "Future dates are not allowed for loans taken." });
+          return;
+        }
+
+        var lp = body.partner === 'partner2' ? 'partner2' : 'partner1';
+        var la = Number(body.amount);
+        if (!la || la <= 0) {
+          res.status(400).json({ success: false, error: "Invalid loan amount" });
+          return;
+        }
+
+        var ld = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
+        var ln = lp === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
+        var loanId = 'loan_' + uuid();
+
+        var loanObj = {
+          id: loanId,
+          partner: lp,
+          originalAmount: la,
+          remainingAmount: la,
+          date: ld,
+          reason: body.reason || "Personal Loan",
+          dueDate: body.dueDate || null,
+          status: 'active',
+          repayments: []
+        };
+
+        var ltx = {
+          id: 'tx_' + uuid(),
+          type: 'loan',
+          loanId: loanId,
+          partner: lp,
+          amount: la,
+          date: ld,
+          monthKey: ld.slice(0, 7),
+          note: 'Loan taken: ' + la.toLocaleString() + ' ' + db.settings.currency + ' by ' + ln + ' (' + loanObj.reason + ')'
+        };
+
+        db.loans.push(loanObj);
+        db.transactions.push(ltx);
+        return saveAccountData(code, db).then(function() {
+          res.status(201).json({ success: true, loan: loanObj, transaction: ltx, summary: computeSummary(db) });
+        });
       }
 
-      const loanDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
-      const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
-      const loanId = 'loan_' + uuid();
+      // POST /api/loan/repay
+      if (req.method === 'POST' && pathname === '/api/loan/repay') {
+        if (isFutureDate(body.date)) {
+          res.status(400).json({ success: false, error: "Future dates are not allowed for repayments." });
+          return;
+        }
 
-      const loanObj = {
-        id: loanId,
-        partner,
-        originalAmount: amount,
-        remainingAmount: amount,
-        date: loanDate,
-        reason: body.reason || "Personal Loan",
-        dueDate: body.dueDate || null,
-        status: 'active',
-        repayments: []
-      };
+        var rloanId = body.loanId;
+        var ramount = Number(body.amount);
+        var rdate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
 
-      const newTx = {
-        id: 'tx_' + uuid(),
-        type: 'loan',
-        loanId,
-        partner,
-        amount,
-        date: loanDate,
-        monthKey: loanDate.slice(0, 7),
-        note: `Loan taken: ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName} (${loanObj.reason})`
-      };
+        var loan = null;
+        for (var li = 0; li < db.loans.length; li++) {
+          if (db.loans[li].id === rloanId) { loan = db.loans[li]; break; }
+        }
+        if (!loan) {
+          res.status(404).json({ success: false, error: "Loan not found" });
+          return;
+        }
 
-      db.loans.push(loanObj);
-      db.transactions.push(newTx);
-      await saveAccountData(code, db);
+        if (!ramount || ramount <= 0) {
+          res.status(400).json({ success: false, error: "Invalid repayment amount" });
+          return;
+        }
 
-      res.status(201).json({ success: true, loan: loanObj, transaction: newTx, summary: computeSummary(db) });
-      return;
-    }
+        var actualRepay = Math.min(ramount, loan.remainingAmount);
+        loan.remainingAmount -= actualRepay;
+        if (loan.remainingAmount <= 0) {
+          loan.status = 'repaid';
+          loan.remainingAmount = 0;
+        }
 
-    // POST /api/loan/repay
-    if (req.method === 'POST' && pathname === '/api/loan/repay') {
-      if (isFutureDate(body.date)) {
-        res.status(400).json({ success: false, error: "Future dates are not allowed for repayments." });
-        return;
+        var repaymentRecord = {
+          id: 'repay_' + uuid(),
+          amount: actualRepay,
+          date: rdate,
+          note: body.note || 'Repayment on loan "' + loan.reason + '"'
+        };
+
+        loan.repayments = loan.repayments || [];
+        loan.repayments.push(repaymentRecord);
+
+        var rpn = loan.partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
+        var rtx = {
+          id: 'tx_' + uuid(),
+          type: 'repayment',
+          loanId: loan.id,
+          partner: loan.partner,
+          amount: actualRepay,
+          date: rdate,
+          monthKey: rdate.slice(0, 7),
+          note: 'Loan repayment of ' + actualRepay.toLocaleString() + ' ' + db.settings.currency + ' by ' + rpn + ' (' + loan.reason + ')'
+        };
+
+        db.transactions.push(rtx);
+        return saveAccountData(code, db).then(function() {
+          res.status(200).json({ success: true, loan: loan, transaction: rtx, summary: computeSummary(db) });
+        });
       }
 
-      const loanId = body.loanId;
-      const amount = Number(body.amount);
-      const repayDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
+      // DELETE /api/transaction/:id
+      if (req.method === 'DELETE' && pathname.indexOf('/api/transaction/') === 0) {
+        var txId = pathname.replace('/api/transaction/', '');
+        var index = -1;
+        for (var di = 0; di < db.transactions.length; di++) {
+          if (db.transactions[di].id === txId) { index = di; break; }
+        }
+        if (index === -1) {
+          res.status(404).json({ success: false, error: "Transaction not found" });
+          return;
+        }
 
-      const loan = db.loans.find(l => l.id === loanId);
-      if (!loan) {
-        res.status(404).json({ success: false, error: "Loan not found" });
-        return;
+        var dtx = db.transactions[index];
+        if (dtx.type === 'loan' && dtx.loanId) {
+          db.loans = db.loans.filter(function(l) { return l.id !== dtx.loanId; });
+        }
+        db.transactions.splice(index, 1);
+        return saveAccountData(code, db).then(function() {
+          res.status(200).json({ success: true, summary: computeSummary(db) });
+        });
       }
 
-      if (!amount || amount <= 0) {
-        res.status(400).json({ success: false, error: "Invalid repayment amount" });
-        return;
+      // PUT /api/settings
+      if (req.method === 'PUT' && pathname === '/api/settings') {
+        db.settings = {
+          partner1Name: safeStr(body.partner1Name) || db.settings.partner1Name,
+          partner2Name: safeStr(body.partner2Name) || db.settings.partner2Name,
+          monthlyTarget: Number(body.monthlyTarget) || db.settings.monthlyTarget || 10000,
+          currency: safeStr(body.currency) || db.settings.currency || "RWF",
+          accountName: safeStr(body.accountName) || db.settings.accountName || "Joint Savings Account"
+        };
+        return saveAccountData(code, db).then(function() {
+          res.status(200).json({ success: true, settings: db.settings, summary: computeSummary(db) });
+        });
       }
 
-      const actualRepay = Math.min(amount, loan.remainingAmount);
-      loan.remainingAmount -= actualRepay;
-      if (loan.remainingAmount <= 0) {
-        loan.status = 'repaid';
-        loan.remainingAmount = 0;
-      }
-
-      const repaymentRecord = {
-        id: 'repay_' + uuid(),
-        amount: actualRepay,
-        date: repayDate,
-        note: body.note || `Repayment on loan "${loan.reason}"`
-      };
-
-      loan.repayments = loan.repayments || [];
-      loan.repayments.push(repaymentRecord);
-
-      const partnerName = loan.partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
-      const newTx = {
-        id: 'tx_' + uuid(),
-        type: 'repayment',
-        loanId: loan.id,
-        partner: loan.partner,
-        amount: actualRepay,
-        date: repayDate,
-        monthKey: repayDate.slice(0, 7),
-        note: `Loan repayment of ${actualRepay.toLocaleString()} ${db.settings.currency} by ${partnerName} (${loan.reason})`
-      };
-
-      db.transactions.push(newTx);
-      await saveAccountData(code, db);
-
-      res.status(200).json({ success: true, loan, transaction: newTx, summary: computeSummary(db) });
-      return;
-    }
-
-    // DELETE /api/transaction/:id
-    if (req.method === 'DELETE' && pathname.startsWith('/api/transaction/')) {
-      const txId = pathname.replace('/api/transaction/', '');
-      const index = db.transactions.findIndex(t => t.id === txId);
-      if (index === -1) {
-        res.status(404).json({ success: false, error: "Transaction not found" });
-        return;
-      }
-
-      const tx = db.transactions[index];
-      if (tx.type === 'loan' && tx.loanId) {
-        db.loans = db.loans.filter(l => l.id !== tx.loanId);
-      }
-      db.transactions.splice(index, 1);
-      await saveAccountData(code, db);
-
-      res.status(200).json({ success: true, summary: computeSummary(db) });
-      return;
-    }
-
-    // PUT /api/settings
-    if (req.method === 'PUT' && pathname === '/api/settings') {
-      db.settings = {
-        ...db.settings,
-        partner1Name: body.partner1Name?.trim() || db.settings.partner1Name,
-        partner2Name: body.partner2Name?.trim() || db.settings.partner2Name,
-        monthlyTarget: Number(body.monthlyTarget) || db.settings.monthlyTarget || 10000,
-        currency: body.currency?.trim() || db.settings.currency || "RWF",
-        accountName: body.accountName?.trim() || db.settings.accountName || "Joint Savings Account"
-      };
-      await saveAccountData(code, db);
-      res.status(200).json({ success: true, settings: db.settings, summary: computeSummary(db) });
-      return;
-    }
-
-    res.status(404).json({ error: "Route not found" });
-  } catch (err) {
+      res.status(404).json({ error: "Route not found" });
+    });
+  }).catch(function(err) {
     console.error("Vercel Function Error:", err);
     res.status(500).json({ error: err.message });
-  }
+  });
 };
