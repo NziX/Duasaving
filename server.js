@@ -55,10 +55,23 @@ async function readAccountData(code) {
       });
       if (res.ok) {
         const json = await res.json();
-        if (json && json.result) {
-          const parsed = typeof json.result === 'string' ? JSON.parse(json.result) : json.result;
-          global._inMemoryAccounts[code] = parsed;
-          return parsed;
+        if (json && json.result !== undefined && json.result !== null) {
+          let parsed = json.result;
+          // Unwind any JSON stringification layers safely
+          while (typeof parsed === 'string') {
+            try {
+              parsed = JSON.parse(parsed);
+            } catch (e) {
+              break;
+            }
+          }
+          if (parsed && typeof parsed === 'object') {
+            parsed.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings || {});
+            parsed.transactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+            parsed.loans = Array.isArray(parsed.loans) ? parsed.loans : [];
+            global._inMemoryAccounts[code] = parsed;
+            return parsed;
+          }
         }
       }
     } catch (err) {
@@ -71,18 +84,36 @@ async function readAccountData(code) {
     const filePath = path.join(ACCOUNTS_DIR, `${code}.json`);
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, 'utf-8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        parsed.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings || {});
+        parsed.transactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+        parsed.loans = Array.isArray(parsed.loans) ? parsed.loans : [];
+        return parsed;
+      }
     }
   } catch (err) {
     // Ignore local read errors on serverless
   }
 
-  return global._inMemoryAccounts[code] || null;
+  const mem = global._inMemoryAccounts[code];
+  if (mem && typeof mem === 'object') {
+    mem.settings = Object.assign({}, DEFAULT_SETTINGS, mem.settings || {});
+    mem.transactions = Array.isArray(mem.transactions) ? mem.transactions : [];
+    mem.loans = Array.isArray(mem.loans) ? mem.loans : [];
+    return mem;
+  }
+
+  return null;
 }
 
 // Save account data (Upstash Redis + Local Filesystem + Memory)
 async function saveAccountData(code, data) {
   if (!code || !/^\d{6}$/.test(code)) return false;
+
+  data.settings = Object.assign({}, DEFAULT_SETTINGS, data.settings || {});
+  data.transactions = Array.isArray(data.transactions) ? data.transactions : [];
+  data.loans = Array.isArray(data.loans) ? data.loans : [];
 
   global._inMemoryAccounts[code] = data;
 
@@ -91,7 +122,7 @@ async function saveAccountData(code, data) {
 
   if (kvUrl && kvToken) {
     try {
-      const payload = typeof data === 'string' ? data : JSON.stringify(data);
+      const payload = JSON.stringify(data);
       await fetch(`${kvUrl}/set/duosave_acc_${code}`, {
         method: 'POST',
         headers: {
@@ -119,8 +150,8 @@ async function saveAccountData(code, data) {
 
 // Compute statistics and summary
 function computeSummary(data) {
-  const settings = data.settings || DEFAULT_SETTINGS;
-  const transactions = data.transactions || [];
+  const settings = (data && data.settings) ? data.settings : DEFAULT_SETTINGS;
+  const transactions = (data && Array.isArray(data.transactions)) ? data.transactions : [];
   let partner1Deposits = 0;
   let partner2Deposits = 0;
   let totalDeposits = 0;
@@ -363,9 +394,13 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      db.settings = db.settings || DEFAULT_SETTINGS;
-      db.transactions = db.transactions || [];
-      db.loans = db.loans || [];
+      db.settings = Object.assign({}, DEFAULT_SETTINGS, db.settings || {});
+      db.transactions = Array.isArray(db.transactions) ? db.transactions : [];
+      db.loans = Array.isArray(db.loans) ? db.loans : [];
+
+      const p1Name = db.settings.partner1Name || "Partner 1";
+      const p2Name = db.settings.partner2Name || "Partner 2";
+      const currency = db.settings.currency || "RWF";
 
       // GET /api/data
       if (req.method === 'GET' && pathname === '/api/data') {
@@ -394,7 +429,7 @@ const server = http.createServer(async (req, res) => {
         const amount = Number(body.amount) || db.settings.monthlyTarget || 10000;
         const depositDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
         const monthKey = body.monthKey || depositDate.slice(0, 7);
-        const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
+        const partnerName = partner === 'partner1' ? p1Name : p2Name;
 
         const newTx = {
           id: 'tx_' + uuid(),
@@ -403,7 +438,7 @@ const server = http.createServer(async (req, res) => {
           amount,
           date: depositDate,
           monthKey,
-          note: body.note || `Monthly deposit of ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName}`
+          note: body.note || `Monthly deposit of ${amount.toLocaleString()} ${currency} by ${partnerName}`
         };
 
         db.transactions.push(newTx);
@@ -425,7 +460,7 @@ const server = http.createServer(async (req, res) => {
           const amount = Number(item.amount) || db.settings.monthlyTarget || 10000;
           const depositDate = item.date ? new Date(item.date).toISOString() : new Date().toISOString();
           const monthKey = item.monthKey || depositDate.slice(0, 7);
-          const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
+          const partnerName = partner === 'partner1' ? p1Name : p2Name;
 
           const newTx = {
             id: 'tx_' + uuid(),
@@ -434,7 +469,7 @@ const server = http.createServer(async (req, res) => {
             amount,
             date: depositDate,
             monthKey,
-            note: item.note || `Monthly deposit of ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName}`
+            note: item.note || `Monthly deposit of ${amount.toLocaleString()} ${currency} by ${partnerName}`
           };
 
           db.transactions.push(newTx);
@@ -464,7 +499,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         const loanDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
-        const partnerName = partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
+        const partnerName = partner === 'partner1' ? p1Name : p2Name;
         const loanId = 'loan_' + uuid();
 
         const loanObj = {
@@ -487,7 +522,7 @@ const server = http.createServer(async (req, res) => {
           amount,
           date: loanDate,
           monthKey: loanDate.slice(0, 7),
-          note: `Loan taken: ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName} (${loanObj.reason})`
+          note: `Loan taken: ${amount.toLocaleString()} ${currency} by ${partnerName} (${loanObj.reason})`
         };
 
         db.loans.push(loanObj);
@@ -541,7 +576,7 @@ const server = http.createServer(async (req, res) => {
         loan.repayments = loan.repayments || [];
         loan.repayments.push(repaymentRecord);
 
-        const partnerName = loan.partner === 'partner1' ? db.settings.partner1Name : db.settings.partner2Name;
+        const partnerName = loan.partner === 'partner1' ? p1Name : p2Name;
         const newTx = {
           id: 'tx_' + uuid(),
           type: 'repayment',
@@ -550,7 +585,7 @@ const server = http.createServer(async (req, res) => {
           amount: actualRepay,
           date: repayDate,
           monthKey: repayDate.slice(0, 7),
-          note: `Loan repayment of ${actualRepay.toLocaleString()} ${db.settings.currency} by ${partnerName} (${loan.reason})`
+          note: `Loan repayment of ${actualRepay.toLocaleString()} ${currency} by ${partnerName} (${loan.reason})`
         };
 
         db.transactions.push(newTx);
@@ -585,18 +620,18 @@ const server = http.createServer(async (req, res) => {
 
       // PUT /api/settings
       if (req.method === 'PUT' && pathname === '/api/settings') {
-        const p1 = (body.partner1Name && typeof body.partner1Name === 'string') ? body.partner1Name.trim() : db.settings.partner1Name;
-        const p2 = (body.partner2Name && typeof body.partner2Name === 'string') ? body.partner2Name.trim() : db.settings.partner2Name;
-        const accName = (body.accountName && typeof body.accountName === 'string') ? body.accountName.trim() : db.settings.accountName;
-        const curr = (body.currency && typeof body.currency === 'string') ? body.currency.trim() : db.settings.currency;
+        const p1 = (body.partner1Name && typeof body.partner1Name === 'string') ? body.partner1Name.trim() : p1Name;
+        const p2 = (body.partner2Name && typeof body.partner2Name === 'string') ? body.partner2Name.trim() : p2Name;
+        const accName = (body.accountName && typeof body.accountName === 'string') ? body.accountName.trim() : (db.settings.accountName || "Joint Savings Account");
+        const curr = (body.currency && typeof body.currency === 'string') ? body.currency.trim() : currency;
 
         db.settings = {
           ...db.settings,
-          partner1Name: p1 || db.settings.partner1Name,
-          partner2Name: p2 || db.settings.partner2Name,
+          partner1Name: p1 || "Partner 1",
+          partner2Name: p2 || "Partner 2",
           monthlyTarget: Number(body.monthlyTarget) || db.settings.monthlyTarget || 10000,
-          currency: curr || db.settings.currency || "RWF",
-          accountName: accName || db.settings.accountName || "Joint Savings Account"
+          currency: curr || "RWF",
+          accountName: accName || "Joint Savings Account"
         };
 
         await saveAccountData(code, db);
