@@ -2,9 +2,6 @@
   "name": "couple-savings-tracker",
   "version": "1.0.0",
   "description": "Joint Couple Savings & Loan Tracker with Real-Time Calendar (10k RWF monthly rule)",
-  "scripts": {
-    "start": "node local-server.js"
-  },
   "keywords": [
     "savings",
     "couple-budget",
