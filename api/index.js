@@ -8,17 +8,7 @@ const DEFAULT_DATA = {
     currency: "RWF",
     accountName: "Joint Savings Account"
   },
-  transactions: [
-    {
-      id: "seed_1",
-      type: "deposit",
-      partner: "partner1",
-      amount: 10000,
-      date: new Date(Date.now() - 3600000 * 2).toISOString(),
-      monthKey: new Date().toISOString().slice(0, 7),
-      note: "Monthly deposit for " + new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date())
-    }
-  ],
+  transactions: [],
   loans: []
 };
 
@@ -124,14 +114,19 @@ function computeSummary(data) {
   };
 }
 
-// Read database from Vercel KV / Upstash or memory
-async function readDatabase() {
+// In-memory accounts storage fallback
+global._inMemoryAccounts = global._inMemoryAccounts || {};
+
+// Read account database from Vercel KV / Upstash or memory by 6-digit code
+async function readAccountData(code) {
+  if (!code || !/^\d{6}$/.test(code)) return null;
+
   const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (kvUrl && kvToken) {
     try {
-      const res = await fetch(`${kvUrl}/get/duosave_db`, {
+      const res = await fetch(`${kvUrl}/get/duosave_acc_${code}`, {
         headers: { Authorization: `Bearer ${kvToken}` }
       });
       if (res.ok) {
@@ -146,19 +141,21 @@ async function readDatabase() {
     }
   }
 
-  return global._inMemoryDB || DEFAULT_DATA;
+  return global._inMemoryAccounts[code] || null;
 }
 
-// Save database to Vercel KV / Upstash or memory
-async function saveDatabase(data) {
+// Save account database to Vercel KV / Upstash or memory by 6-digit code
+async function saveAccountData(code, data) {
+  if (!code || !/^\d{6}$/.test(code)) return false;
+
+  global._inMemoryAccounts[code] = data;
+
   const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
-  global._inMemoryDB = data;
-
   if (kvUrl && kvToken) {
     try {
-      await fetch(`${kvUrl}/set/duosave_db`, {
+      await fetch(`${kvUrl}/set/duosave_acc_${code}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${kvToken}`,
@@ -179,7 +176,7 @@ module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-account-code');
 
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -192,19 +189,104 @@ module.exports = async (req, res) => {
     pathname = pathname.slice(0, -1);
   }
 
+  const body = req.body || {};
+  const code = (req.headers['x-account-code'] || parsedUrl.searchParams.get('code') || body.code || '').trim();
+
   try {
-    const db = await readDatabase();
-    const body = req.body || {};
+    // 1. CREATE ACCOUNT: POST /api/account/create
+    if (req.method === 'POST' && pathname === '/api/account/create') {
+      let targetCode = (body.code || '').trim();
+      
+      // Auto-generate 6 digits if not provided
+      if (!targetCode) {
+        targetCode = String(Math.floor(100000 + Math.random() * 900000));
+      }
+
+      if (!/^\d{6}$/.test(targetCode)) {
+        res.status(400).json({ success: false, error: "Account code must be exactly 6 digits." });
+        return;
+      }
+
+      const existing = await readAccountData(targetCode);
+      if (existing) {
+        res.status(400).json({ success: false, error: `Account with code ${targetCode} already exists. Please pick another code or log in.` });
+        return;
+      }
+
+      const newAccount = {
+        code: targetCode,
+        createdAt: new Date().toISOString(),
+        settings: {
+          partner1Name: body.partner1Name?.trim() || "Partner 1",
+          partner2Name: body.partner2Name?.trim() || "Partner 2",
+          monthlyTarget: Number(body.monthlyTarget) || 10000,
+          currency: body.currency?.trim() || "RWF",
+          accountName: body.accountName?.trim() || "Joint Savings Account"
+        },
+        transactions: [],
+        loans: []
+      };
+
+      await saveAccountData(targetCode, newAccount);
+      res.status(201).json({
+        success: true,
+        code: targetCode,
+        settings: newAccount.settings,
+        summary: computeSummary(newAccount)
+      });
+      return;
+    }
+
+    // 2. LOGIN / VERIFY ACCOUNT: POST /api/account/login
+    if (req.method === 'POST' && pathname === '/api/account/login') {
+      const loginCode = (body.code || code || '').trim();
+      if (!loginCode || !/^\d{6}$/.test(loginCode)) {
+        res.status(400).json({ success: false, error: "Please enter a valid 6-digit login code." });
+        return;
+      }
+
+      const account = await readAccountData(loginCode);
+      if (!account) {
+        res.status(404).json({ success: false, error: `Account code "${loginCode}" was not found. Please check with your partner or create a new account.` });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        code: loginCode,
+        settings: account.settings,
+        summary: computeSummary(account)
+      });
+      return;
+    }
+
+    // For all other routes, require a valid 6-digit code
+    if (!code || !/^\d{6}$/.test(code)) {
+      res.status(401).json({ success: false, error: "Unauthorized: Please log in with your 6-digit account code." });
+      return;
+    }
+
+    const db = await readAccountData(code);
+    if (!db) {
+      res.status(404).json({ success: false, error: `Account code "${code}" not found. Please log in again.` });
+      return;
+    }
+
+    // Ensure structures
+    db.settings = db.settings || DEFAULT_DATA.settings;
+    db.transactions = db.transactions || [];
+    db.loans = db.loans || [];
 
     // GET /api/data
     if (req.method === 'GET' && pathname === '/api/data') {
       const summary = computeSummary(db);
       res.status(200).json({
         success: true,
+        code,
         settings: db.settings,
         summary,
-        loans: db.loans || [],
-        transactions: (db.transactions || []).sort((a, b) => new Date(b.date) - new Date(a.date))
+        loans: db.loans,
+        transactions: db.transactions.sort((a, b) => new Date(b.date) - new Date(a.date))
       });
       return;
     }
@@ -232,9 +314,8 @@ module.exports = async (req, res) => {
         note: body.note || `Monthly deposit of ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName}`
       };
 
-      db.transactions = db.transactions || [];
       db.transactions.push(newTx);
-      await saveDatabase(db);
+      await saveAccountData(code, db);
 
       res.status(201).json({ success: true, transaction: newTx, summary: computeSummary(db) });
       return;
@@ -244,8 +325,6 @@ module.exports = async (req, res) => {
     if (req.method === 'POST' && pathname === '/api/historical-batch') {
       const entries = Array.isArray(body.entries) ? body.entries : [];
       const added = [];
-
-      db.transactions = db.transactions || [];
 
       for (const item of entries) {
         if (isFutureDate(item.date)) continue;
@@ -269,7 +348,7 @@ module.exports = async (req, res) => {
         added.push(newTx);
       }
 
-      await saveDatabase(db);
+      await saveAccountData(code, db);
       res.status(201).json({ success: true, count: added.length, summary: computeSummary(db) });
       return;
     }
@@ -315,11 +394,9 @@ module.exports = async (req, res) => {
         note: `Loan taken: ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName} (${loanObj.reason})`
       };
 
-      db.loans = db.loans || [];
       db.loans.push(loanObj);
-      db.transactions = db.transactions || [];
       db.transactions.push(newTx);
-      await saveDatabase(db);
+      await saveAccountData(code, db);
 
       res.status(201).json({ success: true, loan: loanObj, transaction: newTx, summary: computeSummary(db) });
       return;
@@ -336,7 +413,6 @@ module.exports = async (req, res) => {
       const amount = Number(body.amount);
       const repayDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
 
-      db.loans = db.loans || [];
       const loan = db.loans.find(l => l.id === loanId);
       if (!loan) {
         res.status(404).json({ success: false, error: "Loan not found" });
@@ -377,9 +453,8 @@ module.exports = async (req, res) => {
         note: `Loan repayment of ${actualRepay.toLocaleString()} ${db.settings.currency} by ${partnerName} (${loan.reason})`
       };
 
-      db.transactions = db.transactions || [];
       db.transactions.push(newTx);
-      await saveDatabase(db);
+      await saveAccountData(code, db);
 
       res.status(200).json({ success: true, loan, transaction: newTx, summary: computeSummary(db) });
       return;
@@ -388,7 +463,7 @@ module.exports = async (req, res) => {
     // DELETE /api/transaction/:id
     if (req.method === 'DELETE' && pathname.startsWith('/api/transaction/')) {
       const txId = pathname.replace('/api/transaction/', '');
-      const index = (db.transactions || []).findIndex(t => t.id === txId);
+      const index = db.transactions.findIndex(t => t.id === txId);
       if (index === -1) {
         res.status(404).json({ success: false, error: "Transaction not found" });
         return;
@@ -396,10 +471,10 @@ module.exports = async (req, res) => {
 
       const tx = db.transactions[index];
       if (tx.type === 'loan' && tx.loanId) {
-        db.loans = (db.loans || []).filter(l => l.id !== tx.loanId);
+        db.loans = db.loans.filter(l => l.id !== tx.loanId);
       }
       db.transactions.splice(index, 1);
-      await saveDatabase(db);
+      await saveAccountData(code, db);
 
       res.status(200).json({ success: true, summary: computeSummary(db) });
       return;
@@ -415,15 +490,8 @@ module.exports = async (req, res) => {
         currency: body.currency?.trim() || db.settings.currency || "RWF",
         accountName: body.accountName?.trim() || db.settings.accountName || "Joint Savings Account"
       };
-      await saveDatabase(db);
+      await saveAccountData(code, db);
       res.status(200).json({ success: true, settings: db.settings, summary: computeSummary(db) });
-      return;
-    }
-
-    // POST /api/reset
-    if (req.method === 'POST' && pathname === '/api/reset') {
-      await saveDatabase(DEFAULT_DATA);
-      res.status(200).json({ success: true, message: "Database reset to defaults" });
       return;
     }
 

@@ -5,12 +5,12 @@ const crypto = require('node:crypto');
 
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'database.json');
+const ACCOUNTS_DIR = path.join(DATA_DIR, 'accounts');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// Ensure data folder exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// Ensure data & accounts folders exist
+if (!fs.existsSync(ACCOUNTS_DIR)) {
+  fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
 }
 
 // Initial default state
@@ -22,52 +22,43 @@ const DEFAULT_DATA = {
     currency: "RWF",
     accountName: "Joint Savings Account"
   },
-  transactions: [
-    {
-      id: "seed_1",
-      type: "deposit",
-      partner: "partner1",
-      amount: 10000,
-      date: new Date(Date.now() - 3600000 * 2).toISOString(),
-      monthKey: new Date().toISOString().slice(0, 7),
-      note: "Monthly deposit for " + new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date())
-    }
-  ],
+  transactions: [],
   loans: []
 };
 
-// Helper to read DB
-function readDatabase() {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(DEFAULT_DATA, null, 2), 'utf-8');
-      return JSON.parse(JSON.stringify(DEFAULT_DATA));
-    }
-    const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error("Error reading database:", err);
-    return DEFAULT_DATA;
-  }
-}
-
-// Helper to save DB
-function saveDatabase(data) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
-    return true;
-  } catch (err) {
-    console.error("Error writing database:", err);
-    return false;
-  }
-}
-
-// Check if date is in the future (with 1 minute tolerance)
+// Check if date is in the future
 function isFutureDate(dateStr) {
   if (!dateStr) return false;
   const d = new Date(dateStr).getTime();
   const now = Date.now() + 60000;
   return d > now;
+}
+
+// Read account file
+function readAccountFile(code) {
+  if (!code || !/^\d{6}$/.test(code)) return null;
+  const filePath = path.join(ACCOUNTS_DIR, `${code}.json`);
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error(`Error reading account ${code}:`, err);
+    return null;
+  }
+}
+
+// Save account file
+function saveAccountFile(code, data) {
+  if (!code || !/^\d{6}$/.test(code)) return false;
+  const filePath = path.join(ACCOUNTS_DIR, `${code}.json`);
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error(`Error saving account ${code}:`, err);
+    return false;
+  }
 }
 
 // Compute statistics and summary
@@ -97,24 +88,19 @@ function computeSummary(data) {
 
   const totalLoansTaken = partner1LoansTaken + partner2LoansTaken;
   const totalLoansRepaid = partner1LoansRepaid + partner2LoansRepaid;
-  
-  // Current bank balance: Deposits + Repayments - Loans Taken
   const currentBankBalance = (totalDeposits + totalLoansRepaid) - totalLoansTaken;
 
   const partner1LoanBalance = Math.max(0, partner1LoansTaken - partner1LoansRepaid);
   const partner2LoanBalance = Math.max(0, partner2LoansTaken - partner2LoansRepaid);
   const totalOutstandingLoans = partner1LoanBalance + partner2LoanBalance;
 
-  // Monthly deposit status for current month and any requested month
   const currentMonthKey = new Date().toISOString().slice(0, 7);
 
   const getMonthlyStatus = (monthKey) => {
     const target = data.settings.monthlyTarget || 10000;
     const monthDeposits = (data.transactions || []).filter(tx => tx.type === 'deposit' && tx.monthKey === monthKey);
-    
     const p1Dep = monthDeposits.filter(t => t.partner === 'partner1');
     const p2Dep = monthDeposits.filter(t => t.partner === 'partner2');
-    
     const p1Total = p1Dep.reduce((sum, t) => sum + Number(t.amount || 0), 0);
     const p2Total = p2Dep.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
@@ -136,7 +122,6 @@ function computeSummary(data) {
     };
   };
 
-  // Compute yearly breakdown
   const yearlyBreakdown = {};
   (data.transactions || []).forEach(tx => {
     if (tx.type === 'deposit') {
@@ -176,7 +161,7 @@ function parseJsonBody(req) {
     let body = '';
     req.on('data', chunk => {
       body += chunk.toString();
-      if (body.length > 5 * 1024 * 1024) { // 5MB guard
+      if (body.length > 5 * 1024 * 1024) {
         req.destroy();
         reject(new Error("Payload too large"));
       }
@@ -192,7 +177,6 @@ function parseJsonBody(req) {
   });
 }
 
-// MIME types
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -205,10 +189,9 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer(async (req, res) => {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-account-code');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -219,32 +202,119 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
 
-  // API Endpoints
   if (pathname.startsWith('/api/')) {
     res.setHeader('Content-Type', 'application/json');
 
     try {
-      const db = readDatabase();
+      const body = ['POST', 'PUT', 'DELETE'].includes(req.method) ? await parseJsonBody(req) : {};
+      const code = (req.headers['x-account-code'] || parsedUrl.searchParams.get('code') || body.code || '').trim();
 
-      // GET /api/data
-      if (req.method === 'GET' && pathname === '/api/data') {
-        const month = parsedUrl.searchParams.get('month') || new Date().toISOString().slice(0, 7);
-        const summary = computeSummary(db);
-        
+      // 1. CREATE ACCOUNT: POST /api/account/create
+      if (req.method === 'POST' && pathname === '/api/account/create') {
+        let targetCode = (body.code || '').trim();
+        if (!targetCode) {
+          targetCode = String(Math.floor(100000 + Math.random() * 900000));
+        }
+
+        if (!/^\d{6}$/.test(targetCode)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ success: false, error: "Account code must be exactly 6 digits." }));
+          return;
+        }
+
+        const existing = readAccountFile(targetCode);
+        if (existing) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ success: false, error: `Account with code ${targetCode} already exists. Please pick another code or log in.` }));
+          return;
+        }
+
+        const newAccount = {
+          code: targetCode,
+          createdAt: new Date().toISOString(),
+          settings: {
+            partner1Name: body.partner1Name?.trim() || "Partner 1",
+            partner2Name: body.partner2Name?.trim() || "Partner 2",
+            monthlyTarget: Number(body.monthlyTarget) || 10000,
+            currency: body.currency?.trim() || "RWF",
+            accountName: body.accountName?.trim() || "Joint Savings Account"
+          },
+          transactions: [],
+          loans: []
+        };
+
+        saveAccountFile(targetCode, newAccount);
+        res.writeHead(201);
+        res.end(JSON.stringify({
+          success: true,
+          code: targetCode,
+          settings: newAccount.settings,
+          summary: computeSummary(newAccount)
+        }));
+        return;
+      }
+
+      // 2. LOGIN / VERIFY ACCOUNT: POST /api/account/login
+      if (req.method === 'POST' && pathname === '/api/account/login') {
+        const loginCode = (body.code || code || '').trim();
+        if (!loginCode || !/^\d{6}$/.test(loginCode)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ success: false, error: "Please enter a valid 6-digit login code." }));
+          return;
+        }
+
+        const account = readAccountFile(loginCode);
+        if (!account) {
+          res.writeHead(404);
+          res.end(JSON.stringify({ success: false, error: `Account code "${loginCode}" was not found. Please check with your partner or create a new account.` }));
+          return;
+        }
+
         res.writeHead(200);
         res.end(JSON.stringify({
           success: true,
+          code: loginCode,
+          settings: account.settings,
+          summary: computeSummary(account)
+        }));
+        return;
+      }
+
+      // For all other routes, require a valid 6-digit code
+      if (!code || !/^\d{6}$/.test(code)) {
+        res.writeHead(401);
+        res.end(JSON.stringify({ success: false, error: "Unauthorized: Please log in with your 6-digit account code." }));
+        return;
+      }
+
+      const db = readAccountFile(code);
+      if (!db) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ success: false, error: `Account code "${code}" not found. Please log in again.` }));
+        return;
+      }
+
+      db.settings = db.settings || DEFAULT_DATA.settings;
+      db.transactions = db.transactions || [];
+      db.loans = db.loans || [];
+
+      // GET /api/data
+      if (req.method === 'GET' && pathname === '/api/data') {
+        const summary = computeSummary(db);
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          code,
           settings: db.settings,
           summary,
-          loans: db.loans || [],
-          transactions: (db.transactions || []).sort((a, b) => new Date(b.date) - new Date(a.date))
+          loans: db.loans,
+          transactions: db.transactions.sort((a, b) => new Date(b.date) - new Date(a.date))
         }));
         return;
       }
 
       // POST /api/deposit
       if (req.method === 'POST' && pathname === '/api/deposit') {
-        const body = await parseJsonBody(req);
         if (isFutureDate(body.date)) {
           res.writeHead(400);
           res.end(JSON.stringify({ success: false, error: "Future dates are not allowed. You can only record deposits for today or past dates." }));
@@ -268,21 +338,20 @@ const server = http.createServer(async (req, res) => {
         };
 
         db.transactions.push(newTx);
-        saveDatabase(db);
+        saveAccountFile(code, db);
 
         res.writeHead(201);
         res.end(JSON.stringify({ success: true, transaction: newTx, summary: computeSummary(db) }));
         return;
       }
 
-      // POST /api/historical-batch (Bulk entry for past months / years)
+      // POST /api/historical-batch
       if (req.method === 'POST' && pathname === '/api/historical-batch') {
-        const body = await parseJsonBody(req);
         const entries = Array.isArray(body.entries) ? body.entries : [];
-        const addedTransactions = [];
+        const added = [];
 
         for (const item of entries) {
-          if (isFutureDate(item.date)) continue; // ignore future dates
+          if (isFutureDate(item.date)) continue;
           const partner = item.partner === 'partner2' ? 'partner2' : 'partner1';
           const amount = Number(item.amount) || db.settings.monthlyTarget || 10000;
           const depositDate = item.date ? new Date(item.date).toISOString() : new Date().toISOString();
@@ -300,21 +369,20 @@ const server = http.createServer(async (req, res) => {
           };
 
           db.transactions.push(newTx);
-          addedTransactions.push(newTx);
+          added.push(newTx);
         }
 
-        saveDatabase(db);
+        saveAccountFile(code, db);
         res.writeHead(201);
-        res.end(JSON.stringify({ success: true, count: addedTransactions.length, summary: computeSummary(db) }));
+        res.end(JSON.stringify({ success: true, count: added.length, summary: computeSummary(db) }));
         return;
       }
 
       // POST /api/loan
       if (req.method === 'POST' && pathname === '/api/loan') {
-        const body = await parseJsonBody(req);
         if (isFutureDate(body.date)) {
           res.writeHead(400);
-          res.end(JSON.stringify({ success: false, error: "Future dates are not allowed. You can only record loans for today or past dates." }));
+          res.end(JSON.stringify({ success: false, error: "Future dates are not allowed for loans taken." }));
           return;
         }
 
@@ -338,7 +406,7 @@ const server = http.createServer(async (req, res) => {
           date: loanDate,
           reason: body.reason || "Personal Loan",
           dueDate: body.dueDate || null,
-          status: 'active', // 'active' | 'repaid'
+          status: 'active',
           repayments: []
         };
 
@@ -353,10 +421,9 @@ const server = http.createServer(async (req, res) => {
           note: `Loan taken: ${amount.toLocaleString()} ${db.settings.currency} by ${partnerName} (${loanObj.reason})`
         };
 
-        db.loans = db.loans || [];
         db.loans.push(loanObj);
         db.transactions.push(newTx);
-        saveDatabase(db);
+        saveAccountFile(code, db);
 
         res.writeHead(201);
         res.end(JSON.stringify({ success: true, loan: loanObj, transaction: newTx, summary: computeSummary(db) }));
@@ -365,10 +432,9 @@ const server = http.createServer(async (req, res) => {
 
       // POST /api/loan/repay
       if (req.method === 'POST' && pathname === '/api/loan/repay') {
-        const body = await parseJsonBody(req);
         if (isFutureDate(body.date)) {
           res.writeHead(400);
-          res.end(JSON.stringify({ success: false, error: "Future dates are not allowed. You can only record repayments for today or past dates." }));
+          res.end(JSON.stringify({ success: false, error: "Future dates are not allowed for repayments." }));
           return;
         }
 
@@ -376,7 +442,6 @@ const server = http.createServer(async (req, res) => {
         const amount = Number(body.amount);
         const repayDate = body.date ? new Date(body.date).toISOString() : new Date().toISOString();
 
-        db.loans = db.loans || [];
         const loan = db.loans.find(l => l.id === loanId);
         if (!loan) {
           res.writeHead(404);
@@ -420,7 +485,7 @@ const server = http.createServer(async (req, res) => {
         };
 
         db.transactions.push(newTx);
-        saveDatabase(db);
+        saveAccountFile(code, db);
 
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, loan, transaction: newTx, summary: computeSummary(db) }));
@@ -438,12 +503,11 @@ const server = http.createServer(async (req, res) => {
         }
 
         const tx = db.transactions[index];
-        // If it was a loan, also remove or update the loan
         if (tx.type === 'loan' && tx.loanId) {
-          db.loans = (db.loans || []).filter(l => l.id !== tx.loanId);
+          db.loans = db.loans.filter(l => l.id !== tx.loanId);
         }
         db.transactions.splice(index, 1);
-        saveDatabase(db);
+        saveAccountFile(code, db);
 
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, summary: computeSummary(db) }));
@@ -452,7 +516,6 @@ const server = http.createServer(async (req, res) => {
 
       // PUT /api/settings
       if (req.method === 'PUT' && pathname === '/api/settings') {
-        const body = await parseJsonBody(req);
         db.settings = {
           ...db.settings,
           partner1Name: body.partner1Name?.trim() || db.settings.partner1Name,
@@ -461,37 +524,26 @@ const server = http.createServer(async (req, res) => {
           currency: body.currency?.trim() || db.settings.currency || "RWF",
           accountName: body.accountName?.trim() || db.settings.accountName || "Joint Savings Account"
         };
-        saveDatabase(db);
+        saveAccountFile(code, db);
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, settings: db.settings, summary: computeSummary(db) }));
         return;
       }
 
-      // POST /api/reset
-      if (req.method === 'POST' && pathname === '/api/reset') {
-        saveDatabase(DEFAULT_DATA);
-        res.writeHead(200);
-        res.end(JSON.stringify({ success: true, message: "Database reset to defaults" }));
-        return;
-      }
-
-      // Unmatched API route
       res.writeHead(404);
-      res.end(JSON.stringify({ error: "API Route not found" }));
-      return;
+      res.end(JSON.stringify({ error: "Route not found" }));
     } catch (err) {
       console.error("API Error:", err);
       res.writeHead(500);
       res.end(JSON.stringify({ error: err.message }));
-      return;
     }
+    return;
   }
 
   // Static file server
   let reqPath = pathname === '/' ? '/index.html' : pathname;
   let safePath = path.normalize(path.join(PUBLIC_DIR, reqPath));
 
-  // Security check to avoid directory traversal
   if (!safePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403);
     res.end('Access Denied');
@@ -500,7 +552,6 @@ const server = http.createServer(async (req, res) => {
 
   fs.stat(safePath, (err, stats) => {
     if (err || !stats.isFile()) {
-      // Fallback to index.html for SPA routing
       const indexPath = path.join(PUBLIC_DIR, 'index.html');
       if (fs.existsSync(indexPath)) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -514,7 +565,6 @@ const server = http.createServer(async (req, res) => {
 
     const ext = path.extname(safePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-
     res.writeHead(200, { 'Content-Type': contentType });
     fs.createReadStream(safePath).pipe(res);
   });
@@ -522,9 +572,8 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`=======================================================`);
-  console.log(`🏦 Couple Shared Savings & Loan Tracker is running!`);
+  console.log(`🏦 DuoSave Multi-Account Server Running!`);
   console.log(`👉 Access URL: http://localhost:${PORT}`);
-  console.log(`📅 Real-time clock and calendar active`);
-  console.log(`💾 Database file: ${DATA_FILE}`);
+  console.log(`🔑 6-Digit Account Code Authentication Enabled`);
   console.log(`=======================================================`);
 });

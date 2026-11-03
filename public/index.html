@@ -96,12 +96,24 @@
           </div>
         </div>
 
+        <!-- 6-Digit Account Code Share Pill -->
+        <button id="accountCodePill" onclick="copyAccountShareInfo()" class="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition" title="Click to copy and share account code with partner">
+          <span class="text-emerald-600">🔑 Code:</span>
+          <span id="headerAccountCode" class="font-mono font-bold tracking-wider">------</span>
+          <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+        </button>
+
         <!-- Action / Settings button -->
         <button onclick="openSettingsModal()" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition" title="Account Settings">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
           </svg>
+        </button>
+
+        <!-- Switch Account / Sign Out button -->
+        <button onclick="logoutAccount()" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Switch Account / Sign Out">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
         </button>
       </div>
 
@@ -785,6 +797,18 @@
       </div>
 
       <form id="settingsForm" onsubmit="handleSettingsSubmit(event)" class="space-y-4">
+        <!-- Shared Account Code Card -->
+        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Shared 6-Digit Code</div>
+            <div id="settingsAccountCode" class="text-base font-mono font-extrabold text-emerald-950 tracking-widest">------</div>
+          </div>
+          <button type="button" onclick="copyAccountShareInfo()" class="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-100 rounded-lg border border-emerald-300 shadow-xs transition flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+            <span>Share Code</span>
+          </button>
+        </div>
+
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Name (e.g. Your Name)</label>
           <input type="text" id="settingP1Name" required placeholder="Partner 1" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-blue-500">
@@ -814,6 +838,134 @@
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 7. AUTHENTICATION & 6-DIGIT CODE LOGIN OVERLAY -->
+  <div id="authOverlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Brand Logo & Header -->
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30 mb-3">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+          </svg>
+        </div>
+        <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">DuoSave Joint Account</h2>
+        <p class="text-xs text-slate-500 mt-1">Connect with your partner using a shared 6-digit login code</p>
+      </div>
+
+      <!-- Tab Switcher -->
+      <div class="flex bg-slate-100 p-1 rounded-2xl mb-6">
+        <button id="tabBtnLogin" type="button" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-bold rounded-xl transition bg-white text-slate-900 shadow-xs">
+          🔑 Enter 6-Digit Code
+        </button>
+        <button id="tabBtnCreate" type="button" onclick="switchAuthTab('create')" class="flex-1 py-2 text-xs font-bold rounded-xl transition text-slate-500 hover:text-slate-800">
+          ✨ Create New Account
+        </button>
+      </div>
+
+      <!-- TAB 1: LOGIN WITH 6-DIGIT CODE -->
+      <div id="tabContentLogin">
+        <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+          <div class="text-center">
+            <label class="block text-xs font-semibold text-slate-600 mb-2">
+              Enter the 6-digit code shared by your partner:
+            </label>
+            <input 
+              type="text" 
+              id="loginCodeInput" 
+              required 
+              maxlength="6" 
+              pattern="[0-9]{6}" 
+              inputmode="numeric" 
+              autocomplete="one-time-code"
+              placeholder="••••••" 
+              class="w-full text-center font-mono text-3xl font-extrabold tracking-[0.4em] bg-slate-50 border-2 border-slate-200 focus:border-emerald-500 rounded-2xl px-4 py-3 text-slate-900 placeholder:text-slate-300 focus:outline-none focus:bg-white transition"
+              oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6)"
+            >
+            <p class="text-[11px] text-slate-400 mt-2">Example: 489201</p>
+          </div>
+
+          <div id="loginErrorMsg" class="hidden text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl p-3 text-center font-medium"></div>
+
+          <button type="submit" id="loginSubmitBtn" class="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2">
+            <span>Connect &amp; Enter Joint Account</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </button>
+          
+          <div class="text-center pt-2">
+            <p class="text-xs text-slate-400">First time here? <button type="button" onclick="switchAuthTab('create')" class="text-emerald-600 font-semibold hover:underline">Create a shared code</button></p>
+          </div>
+        </form>
+      </div>
+
+      <!-- TAB 2: CREATE NEW ACCOUNT -->
+      <div id="tabContentCreate" class="hidden">
+        <form onsubmit="handleCreateAccountSubmit(event)" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Name</label>
+            <input type="text" id="createP1Name" required placeholder="e.g. Emmanuel" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-emerald-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 2 Name</label>
+            <input type="text" id="createP2Name" required placeholder="e.g. Sarah" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-pink-500">
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-semibold text-slate-700">6-Digit Account Code</label>
+              <button type="button" onclick="generateRandomAuthCode()" class="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+                <span>🎲 Generate New</span>
+              </button>
+            </div>
+            <input 
+              type="text" 
+              id="createCodeInput" 
+              required 
+              maxlength="6" 
+              pattern="[0-9]{6}" 
+              inputmode="numeric" 
+              placeholder="6-digit code" 
+              class="w-full text-center font-mono text-xl font-bold tracking-widest bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:bg-white focus:outline-emerald-500"
+              oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6)"
+            >
+            <p class="text-[11px] text-slate-400 mt-1">Keep this 6-digit code safe and share it with your partner.</p>
+          </div>
+
+          <div id="createErrorMsg" class="hidden text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl p-3 text-center font-medium"></div>
+
+          <button type="submit" id="createSubmitBtn" class="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-slate-900 hover:bg-black shadow-md transition flex items-center justify-center gap-2">
+            <span>Create Shared Account ✨</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- TAB 3: ACCOUNT CREATED SUCCESS POPUP -->
+      <div id="tabContentSuccess" class="hidden text-center space-y-4">
+        <div class="w-12 h-12 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl">🎉</div>
+        <div>
+          <h3 class="text-lg font-bold text-slate-900">Account Created Successfully!</h3>
+          <p class="text-xs text-slate-500 mt-1">Share this 6-digit code with your partner so they can connect:</p>
+        </div>
+
+        <div class="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl">
+          <div class="text-xs font-bold uppercase tracking-wider text-emerald-700 mb-1">Your 6-Digit Share Code</div>
+          <div id="createdCodeDisplay" class="text-3xl font-mono font-black tracking-[0.3em] text-emerald-900">------</div>
+        </div>
+
+        <div class="space-y-2">
+          <button type="button" onclick="copyCreatedAccountShare()" class="w-full py-2.5 px-4 rounded-xl font-bold text-xs text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+            <span>📋 Copy Code &amp; Invite Link</span>
+          </button>
+          <button type="button" onclick="finishAccountCreation()" class="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-700 transition">
+            <span>Continue to Dashboard 🚀</span>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -916,9 +1068,259 @@
       }, 3500);
     }
 
+    // Active 6-Digit Account Code
+    let currentAccountCode = localStorage.getItem('duo_account_code') || '';
+
+    // Auth Overlay & Modal Controls
+    function showAuthModal(defaultTab = 'login') {
+      const overlay = document.getElementById('authOverlay');
+      if (overlay) overlay.classList.remove('hidden');
+      switchAuthTab(defaultTab);
+    }
+
+    function hideAuthModal() {
+      const overlay = document.getElementById('authOverlay');
+      if (overlay) overlay.classList.add('hidden');
+    }
+
+    function switchAuthTab(tab) {
+      const tabBtnLogin = document.getElementById('tabBtnLogin');
+      const tabBtnCreate = document.getElementById('tabBtnCreate');
+      const tabLogin = document.getElementById('tabContentLogin');
+      const tabCreate = document.getElementById('tabContentCreate');
+      const tabSuccess = document.getElementById('tabContentSuccess');
+      if (tabSuccess) tabSuccess.classList.add('hidden');
+
+      if (tab === 'login') {
+        if (tabLogin) tabLogin.classList.remove('hidden');
+        if (tabCreate) tabCreate.classList.add('hidden');
+        if (tabBtnLogin) tabBtnLogin.className = 'flex-1 py-2 text-xs font-bold rounded-xl transition bg-white text-slate-900 shadow-xs';
+        if (tabBtnCreate) tabBtnCreate.className = 'flex-1 py-2 text-xs font-bold rounded-xl transition text-slate-500 hover:text-slate-800';
+        setTimeout(() => {
+          const inp = document.getElementById('loginCodeInput');
+          if (inp) inp.focus();
+        }, 100);
+      } else {
+        if (tabLogin) tabLogin.classList.add('hidden');
+        if (tabCreate) tabCreate.classList.remove('hidden');
+        if (tabBtnLogin) tabBtnLogin.className = 'flex-1 py-2 text-xs font-bold rounded-xl transition text-slate-500 hover:text-slate-800';
+        if (tabBtnCreate) tabBtnCreate.className = 'flex-1 py-2 text-xs font-bold rounded-xl transition bg-white text-slate-900 shadow-xs';
+        const codeInp = document.getElementById('createCodeInput');
+        if (codeInp && !codeInp.value) {
+          generateRandomAuthCode();
+        }
+        setTimeout(() => {
+          const p1 = document.getElementById('createP1Name');
+          if (p1) p1.focus();
+        }, 100);
+      }
+    }
+
+    function generateRandomAuthCode() {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const el = document.getElementById('createCodeInput');
+      if (el) el.value = code;
+    }
+
+    // Unified API Fetch with 6-Digit Account Code Header
+    async function apiFetch(url, options = {}) {
+      options.headers = options.headers || {};
+      if (currentAccountCode) {
+        options.headers['x-account-code'] = currentAccountCode;
+      }
+      if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(options.body);
+      }
+      const res = await fetch(url, options);
+      if (res.status === 401) {
+        showAuthModal('login');
+      }
+      return res;
+    }
+
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const codeInput = document.getElementById('loginCodeInput');
+      const code = (codeInput?.value || '').trim();
+      const errEl = document.getElementById('loginErrorMsg');
+      if (errEl) errEl.classList.add('hidden');
+
+      if (!/^\d{6}$/.test(code)) {
+        if (errEl) {
+          errEl.textContent = 'Please enter a valid 6-digit number.';
+          errEl.classList.remove('hidden');
+        }
+        return;
+      }
+
+      const submitBtn = document.getElementById('loginSubmitBtn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Connecting...';
+      }
+
+      try {
+        const res = await fetch('/api/account/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          currentAccountCode = code;
+          localStorage.setItem('duo_account_code', code);
+          updateCodeBadges();
+          hideAuthModal();
+          await fetchAppData();
+          showToast(`Connected to joint account ${code}!`, '🎉');
+          return;
+        } else {
+          if (errEl) {
+            errEl.textContent = data.error || 'Account not found. Please check with your partner or create a new account.';
+            errEl.classList.remove('hidden');
+          }
+        }
+      } catch (err) {
+        // Standalone/offline fallback
+        currentAccountCode = code;
+        localStorage.setItem('duo_account_code', code);
+        updateCodeBadges();
+        hideAuthModal();
+        loadFromLocalStorage();
+        recomputeClientSummary();
+        renderAll();
+        showToast(`Offline mode: Account ${code}`, '📱');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Connect & Enter Joint Account</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>';
+        }
+      }
+    }
+
+    async function handleCreateAccountSubmit(e) {
+      e.preventDefault();
+      const p1 = document.getElementById('createP1Name')?.value.trim() || 'Partner 1';
+      const p2 = document.getElementById('createP2Name')?.value.trim() || 'Partner 2';
+      let code = document.getElementById('createCodeInput')?.value.trim();
+      if (!code) code = String(Math.floor(100000 + Math.random() * 900000));
+
+      const errEl = document.getElementById('createErrorMsg');
+      if (errEl) errEl.classList.add('hidden');
+
+      if (!/^\d{6}$/.test(code)) {
+        if (errEl) {
+          errEl.textContent = 'Account code must be exactly 6 digits.';
+          errEl.classList.remove('hidden');
+        }
+        return;
+      }
+
+      const submitBtn = document.getElementById('createSubmitBtn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating...';
+      }
+
+      try {
+        const res = await fetch('/api/account/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, partner1Name: p1, partner2Name: p2 })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          currentAccountCode = code;
+          localStorage.setItem('duo_account_code', code);
+          updateCodeBadges();
+          
+          document.getElementById('tabContentCreate')?.classList.add('hidden');
+          document.getElementById('tabContentLogin')?.classList.add('hidden');
+          const successEl = document.getElementById('tabContentSuccess');
+          if (successEl) successEl.classList.remove('hidden');
+          const disp = document.getElementById('createdCodeDisplay');
+          if (disp) disp.textContent = code;
+          return;
+        } else {
+          if (errEl) {
+            errEl.textContent = data.error || 'Could not create account. Try another code.';
+            errEl.classList.remove('hidden');
+          }
+        }
+      } catch (err) {
+        // Offline mode fallback
+        currentAccountCode = code;
+        localStorage.setItem('duo_account_code', code);
+        appData.settings.partner1Name = p1;
+        appData.settings.partner2Name = p2;
+        appData.transactions = [];
+        appData.loans = [];
+        saveToLocalStorage();
+        updateCodeBadges();
+
+        document.getElementById('tabContentCreate')?.classList.add('hidden');
+        document.getElementById('tabContentLogin')?.classList.add('hidden');
+        const successEl = document.getElementById('tabContentSuccess');
+        if (successEl) successEl.classList.remove('hidden');
+        const disp = document.getElementById('createdCodeDisplay');
+        if (disp) disp.textContent = code;
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Create Shared Account ✨</span>';
+        }
+      }
+    }
+
+    function finishAccountCreation() {
+      hideAuthModal();
+      fetchAppData();
+      showToast(`Account ${currentAccountCode} ready!`, '🚀');
+    }
+
+    function getShareMessage() {
+      const appUrl = window.location.origin;
+      return `Join our DuoSave shared couple savings account! Our 6-digit login code is: ${currentAccountCode} at ${appUrl}`;
+    }
+
+    function copyAccountShareInfo() {
+      if (!currentAccountCode) return;
+      const msg = getShareMessage();
+      if (navigator.share) {
+        navigator.share({ title: 'DuoSave Joint Account', text: msg, url: window.location.origin }).catch(() => {});
+      } else if (navigator.clipboard) {
+        navigator.clipboard.writeText(msg);
+        showToast('Code & invite copied! Send it to your partner 💬', '📋');
+      } else {
+        prompt('Copy your 6-digit code to share:', currentAccountCode);
+      }
+    }
+
+    function copyCreatedAccountShare() {
+      copyAccountShareInfo();
+    }
+
+    function logoutAccount() {
+      if (confirm(`Do you want to switch or disconnect from shared account ${currentAccountCode}?`)) {
+        localStorage.removeItem('duo_account_code');
+        currentAccountCode = '';
+        updateCodeBadges();
+        showAuthModal('login');
+      }
+    }
+
+    function updateCodeBadges() {
+      const badge = document.getElementById('headerAccountCode');
+      if (badge) badge.textContent = currentAccountCode || '------';
+      const settingsCode = document.getElementById('settingsAccountCode');
+      if (settingsCode) settingsCode.textContent = currentAccountCode || '------';
+    }
+
     // Local Storage helpers for standalone / offline fallback
     function saveToLocalStorage() {
-      localStorage.setItem('duo_savings_data', JSON.stringify({
+      const key = 'duo_savings_acc_' + (currentAccountCode || 'default');
+      localStorage.setItem(key, JSON.stringify({
         settings: appData.settings,
         transactions: appData.transactions,
         loans: appData.loans
@@ -926,7 +1328,8 @@
     }
 
     function loadFromLocalStorage() {
-      const raw = localStorage.getItem('duo_savings_data');
+      const key = 'duo_savings_acc_' + (currentAccountCode || 'default');
+      const raw = localStorage.getItem(key);
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -941,8 +1344,14 @@
 
     // Fetch from Backend API or LocalStorage
     async function fetchAppData() {
+      if (!currentAccountCode) {
+        showAuthModal('login');
+        return;
+      }
+      updateCodeBadges();
+
       try {
-        const res = await fetch('/api/data', { cache: 'no-store' });
+        const res = await apiFetch('/api/data', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (data.success) {
@@ -1685,7 +2094,7 @@
 
       if (isConnectedToServer) {
         try {
-          const res = await fetch('/api/historical-batch', {
+          const res = await apiFetch('/api/historical-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ entries })
@@ -1913,7 +2322,7 @@
 
       if (isConnectedToServer) {
         try {
-          const res = await fetch('/api/deposit', {
+          const res = await apiFetch('/api/deposit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ partner, amount, monthKey, date: fullDate, note: noteVal })
@@ -1988,7 +2397,7 @@
 
       if (isConnectedToServer) {
         try {
-          const res = await fetch('/api/loan', {
+          const res = await apiFetch('/api/loan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ partner, amount, reason, date: fullDate, dueDate })
@@ -2104,7 +2513,7 @@
 
       if (isConnectedToServer) {
         try {
-          const res = await fetch('/api/loan/repay', {
+          const res = await apiFetch('/api/loan/repay', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ loanId, amount, date: fullDate, note: noteVal })
@@ -2161,7 +2570,7 @@
 
       if (isConnectedToServer) {
         try {
-          const res = await fetch(`/api/transaction/${txId}`, { method: 'DELETE' });
+          const res = await apiFetch(`/api/transaction/${txId}`, { method: 'DELETE' });
           if (res.ok) {
             showToast("Transaction deleted");
             await fetchAppData();
@@ -2186,6 +2595,7 @@
 
     // Settings Modal
     function openSettingsModal() {
+      document.getElementById('settingsAccountCode').textContent = currentAccountCode || '------';
       document.getElementById('settingP1Name').value = appData.settings.partner1Name || "Partner 1";
       document.getElementById('settingP2Name').value = appData.settings.partner2Name || "Partner 2";
       document.getElementById('settingMonthlyTarget').value = appData.settings.monthlyTarget || 10000;
@@ -2213,7 +2623,7 @@
 
       if (isConnectedToServer) {
         try {
-          const res = await fetch('/api/settings', {
+          const res = await apiFetch('/api/settings', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updated)
@@ -2240,20 +2650,33 @@
 
     // Reset Confirm
     async function resetDatabaseConfirm() {
-      if (!confirm("⚠️ This will reset all records and history to initial defaults. Are you sure?")) return;
+      if (!confirm(`⚠️ This will clear all transactions and loans for account ${currentAccountCode}. Are you sure?`)) return;
+
+      const resetData = {
+        partner1Name: appData.settings.partner1Name,
+        partner2Name: appData.settings.partner2Name,
+        monthlyTarget: appData.settings.monthlyTarget,
+        currency: appData.settings.currency
+      };
+
+      appData.transactions = [];
+      appData.loans = [];
+      saveToLocalStorage();
 
       if (isConnectedToServer) {
-        await fetch('/api/reset', { method: 'POST' });
-        closeSettingsModal();
-        showToast("Database reset to defaults");
-        await fetchAppData();
-        return;
+        try {
+          await apiFetch('/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(resetData)
+          });
+        } catch(e) {}
       }
 
-      localStorage.removeItem('duo_savings_data');
-      loadFromLocalStorage();
-      recomputeClientSummary();
       closeSettingsModal();
+      showToast("Account reset", "🧹");
+      await fetchAppData();
+    }
       showToast("Data reset to defaults");
       renderAll();
     }
@@ -2294,7 +2717,14 @@
     window.addEventListener('DOMContentLoaded', () => {
       enforceMaxDates();
       syncMonthPickerWithCalendar();
-      fetchAppData();
+      updateCodeBadges();
+
+      if (currentAccountCode) {
+        hideAuthModal();
+        fetchAppData();
+      } else {
+        showAuthModal('login');
+      }
 
       // Register PWA Service Worker
       if ('serviceWorker' in navigator) {
