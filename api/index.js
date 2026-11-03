@@ -171,8 +171,39 @@ async function saveAccountData(code, data) {
   return true;
 }
 
+// Helper to safely parse incoming JSON body from any runtime
+async function parseRequestBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') {
+    try { return JSON.parse(req.body); } catch (e) { return {}; }
+  }
+  return new Promise((resolve) => {
+    let data = '';
+    req.on('data', chunk => { data += chunk.toString(); });
+    req.on('end', () => {
+      try { resolve(data ? JSON.parse(data) : {}); }
+      catch (e) { resolve({}); }
+    });
+    req.on('error', () => resolve({}));
+  });
+}
+
 // Vercel Serverless Function Handler
 module.exports = async (req, res) => {
+  // Polyfill res.status and res.json if running on raw Node http server
+  if (typeof res.status !== 'function') {
+    res.status = function(code) {
+      this.statusCode = code;
+      return this;
+    };
+  }
+  if (typeof res.json !== 'function') {
+    res.json = function(payload) {
+      this.setHeader('Content-Type', 'application/json');
+      this.end(JSON.stringify(payload));
+    };
+  }
+
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -189,8 +220,8 @@ module.exports = async (req, res) => {
     pathname = pathname.slice(0, -1);
   }
 
-  const body = req.body || {};
-  const code = (req.headers['x-account-code'] || parsedUrl.searchParams.get('code') || body.code || '').trim();
+  const body = await parseRequestBody(req);
+  const code = String(req.headers['x-account-code'] || parsedUrl.searchParams.get('code') || body.code || '').trim();
 
   try {
     // 1. CREATE ACCOUNT: POST /api/account/create
