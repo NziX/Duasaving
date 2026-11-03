@@ -179,18 +179,29 @@ async function saveAccountData(code, data) {
 
 // Helper to safely parse incoming JSON body from any runtime
 async function parseRequestBody(req) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return {};
+  }
   if (req.body && typeof req.body === 'object') return req.body;
   if (typeof req.body === 'string') {
     try { return JSON.parse(req.body); } catch (e) { return {}; }
   }
+  if (req.readableEnded || req.complete) {
+    return {};
+  }
   return new Promise((resolve) => {
     let data = '';
+    const timer = setTimeout(() => resolve({}), 800); // 800ms safety guard
     req.on('data', chunk => { data += chunk.toString(); });
     req.on('end', () => {
+      clearTimeout(timer);
       try { resolve(data ? JSON.parse(data) : {}); }
       catch (e) { resolve({}); }
     });
-    req.on('error', () => resolve({}));
+    req.on('error', () => {
+      clearTimeout(timer);
+      resolve({});
+    });
   });
 }
 
