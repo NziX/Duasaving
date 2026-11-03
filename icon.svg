@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="160" fill="white" opacity="0.15"/>
+  <path d="M256 128 C200 64, 96 112, 128 200 C150 260, 256 340, 256 340 C256 340, 362 260, 384 200 C416 112, 312 64, 256 128 Z" fill="#ec4899" opacity="0.85"/>
+  <path d="M256 190 C220 150, 150 180, 170 235 C185 275, 256 330, 256 330 C256 330, 327 275, 342 235 C362 180, 292 150, 256 190 Z" fill="#3b82f6" opacity="0.85"/>
+  <!-- Gold Coin in Center -->
+  <circle cx="256" cy="256" r="64" fill="#fbbf24" stroke="#f59e0b" stroke-width="6"/>
+  <text x="256" y="274" font-family="Arial, sans-serif" font-size="44" font-weight="900" text-anchor="middle" fill="#78350f">RF</text>
+</svg>
