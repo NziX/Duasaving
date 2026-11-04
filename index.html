@@ -822,27 +822,14 @@
           </button>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Name</label>
-            <input type="text" id="settingP1Name" required placeholder="Partner 1" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-blue-500">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Email <span class="text-slate-400 font-normal">(for login)</span></label>
-            <input type="email" id="settingP1Email" placeholder="e.g. emma@gmail.com" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-blue-500">
-          </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Name</label>
+          <input type="text" id="settingP1Name" required placeholder="Partner 1" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-blue-500">
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 2 Name</label>
-            <input type="text" id="settingP2Name" required placeholder="Partner 2" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-pink-500">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 2 Email <span class="text-slate-400 font-normal">(for login)</span></label>
-            <input type="email" id="settingP2Email" placeholder="e.g. sarah@gmail.com" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-pink-500">
-          </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 2 Name</label>
+          <input type="text" id="settingP2Name" required placeholder="Partner 2" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-pink-500">
         </div>
-        <p class="text-[11px] text-slate-400 -mt-1">Link your emails so each partner can log in easily from any device using their email.</p>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Monthly Target Each</label>
@@ -879,35 +866,38 @@
           </svg>
         </div>
         <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">DuoSave Joint Account</h2>
-        <p class="text-xs text-slate-500 mt-1">Connect with your partner using a 6-digit code or linked email</p>
+        <p class="text-xs text-slate-500 mt-1">Connect with your partner using your shared 6-digit code</p>
       </div>
 
       <!-- Tab Switcher -->
       <div class="flex bg-slate-100 p-1 rounded-2xl mb-6">
         <button id="tabBtnLogin" type="button" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-bold rounded-xl transition bg-white text-slate-900 shadow-xs">
-          🔑 Enter Code or Email
+          🔑 Enter 6-Digit Code
         </button>
         <button id="tabBtnCreate" type="button" onclick="switchAuthTab('create')" class="flex-1 py-2 text-xs font-bold rounded-xl transition text-slate-500 hover:text-slate-800">
           ✨ Create New Account
         </button>
       </div>
 
-      <!-- TAB 1: LOGIN WITH 6-DIGIT CODE OR EMAIL -->
+      <!-- TAB 1: LOGIN WITH 6-DIGIT CODE -->
       <div id="tabContentLogin">
         <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
           <div class="text-center">
             <label class="block text-xs font-semibold text-slate-600 mb-2">
-              Enter your shared 6-digit code or linked email:
+              Enter your shared 6-digit account code:
             </label>
             <input 
               type="text" 
               id="loginCodeInput" 
               required 
-              autocomplete="email"
-              placeholder="e.g. 489201 or emma@gmail.com" 
-              class="w-full text-center font-semibold text-base sm:text-lg bg-slate-50 border-2 border-slate-200 focus:border-emerald-500 rounded-2xl px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white transition"
+              maxlength="6" 
+              pattern="[0-9]{6}" 
+              inputmode="numeric" 
+              placeholder="e.g. 489201" 
+              class="w-full text-center font-mono text-2xl font-bold tracking-widest bg-slate-50 border-2 border-slate-200 focus:border-emerald-500 rounded-2xl px-4 py-3.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white transition"
+              oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6)"
             >
-            <p class="text-[11px] text-slate-400 mt-2">Log in with the 6-digit code or either partner's email address.</p>
+            <p class="text-[11px] text-slate-400 mt-2">Enter the 6-digit code shared between you and your partner.</p>
           </div>
 
           <div id="loginErrorMsg" class="hidden text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl p-3 text-center font-medium"></div>
@@ -926,26 +916,13 @@
       <!-- TAB 2: CREATE NEW ACCOUNT -->
       <div id="tabContentCreate" class="hidden">
         <form onsubmit="handleCreateAccountSubmit(event)" class="space-y-3.5">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Name</label>
-              <input type="text" id="createP1Name" required placeholder="e.g. Emmanuel" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-emerald-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Email <span class="text-slate-400 font-normal">(optional)</span></label>
-              <input type="email" id="createP1Email" placeholder="e.g. emma@gmail.com" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-emerald-500">
-            </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 1 Name</label>
+            <input type="text" id="createP1Name" required placeholder="e.g. Emmanuel" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-emerald-500">
           </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 2 Name</label>
-              <input type="text" id="createP2Name" required placeholder="e.g. Sarah" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-pink-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 2 Email <span class="text-slate-400 font-normal">(optional)</span></label>
-              <input type="email" id="createP2Email" placeholder="e.g. sarah@gmail.com" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-pink-500">
-            </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Partner 2 Name</label>
+            <input type="text" id="createP2Name" required placeholder="e.g. Sarah" class="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-pink-500">
           </div>
 
           <div>
@@ -1023,7 +1000,6 @@
       },
       transactions: [],
       loans: [],
-      emails: [],
       summary: null
     };
 
@@ -1351,15 +1327,11 @@
       const errEl = document.getElementById('loginErrorMsg');
       if (errEl) errEl.classList.add('hidden');
 
-      // Normalize input: trim and strip any accidental spaces or dashes in 6-digit codes
-      const cleanVal = rawInput.includes('@') ? rawInput.toLowerCase() : rawInput.replace(/[\s-]+/g, '');
+      const cleanVal = rawInput.replace(/[^0-9]/g, '');
 
-      const is6Digit = /^\d{6}$/.test(cleanVal);
-      const isEmailVal = cleanVal.includes('@') && cleanVal.length >= 5;
-
-      if (!is6Digit && !isEmailVal) {
+      if (!/^\d{6}$/.test(cleanVal)) {
         if (errEl) {
-          errEl.textContent = 'Please enter a valid 6-digit code or email address.';
+          errEl.textContent = 'Please enter a valid 6-digit account code.';
           errEl.classList.remove('hidden');
         }
         return;
@@ -1372,29 +1344,7 @@
       }
 
       // Check if this account is already cached on this device's localStorage
-      let localCachedCode = is6Digit ? cleanVal : null;
-      if (!localCachedCode && isEmailVal) {
-        const targetEmail = cleanVal.toLowerCase();
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('duo_savings_acc_')) {
-            try {
-              const parsed = JSON.parse(localStorage.getItem(k));
-              const emails = Array.isArray(parsed.emails) ? [...parsed.emails] : [];
-              if (parsed.settings) {
-                if (parsed.settings.partner1Email) emails.push(parsed.settings.partner1Email);
-                if (parsed.settings.partner2Email) emails.push(parsed.settings.partner2Email);
-              }
-              if (emails.map(e => String(e).toLowerCase()).includes(targetEmail)) {
-                localCachedCode = k.replace('duo_savings_acc_', '');
-                break;
-              }
-            } catch (e) {}
-          }
-        }
-      }
-
-      const hasLocalCache = localCachedCode && localStorage.getItem('duo_savings_acc_' + localCachedCode);
+      const hasLocalCache = localStorage.getItem('duo_savings_acc_' + cleanVal);
 
       try {
         if (!navigator.onLine) {
@@ -1412,7 +1362,6 @@
           const resolvedCode = data.code || cleanVal;
           currentAccountCode = resolvedCode;
           localStorage.setItem('duo_account_code', resolvedCode);
-          if (data.emails) appData.emails = data.emails;
           if (data.settings) appData.settings = data.settings;
           if (data.summary) appData.summary = data.summary;
           saveToLocalStorage();
@@ -1428,36 +1377,33 @@
 
         // If not found on server but exists in this device's localStorage, restore it!
         if (hasLocalCache) {
-          console.warn("Account not on server, restoring from device storage:", localCachedCode);
-          currentAccountCode = localCachedCode;
-          localStorage.setItem('duo_account_code', localCachedCode);
+          console.warn("Account not on server, restoring from device storage:", cleanVal);
+          currentAccountCode = cleanVal;
+          localStorage.setItem('duo_account_code', cleanVal);
           updateCodeBadges();
           hideAuthModal();
           loadFromLocalStorage();
           recomputeClientSummary();
           renderAll();
-          showToast(`Account ${localCachedCode} restored from your device!`, '📱');
+          showToast(`Account ${cleanVal} restored from your device!`, '📱');
 
           // Auto-restore account to the server in the background
           fetch('/api/account/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              code: localCachedCode,
+              code: cleanVal,
               partner1Name: appData.settings.partner1Name || "Partner 1",
               partner2Name: appData.settings.partner2Name || "Partner 2",
-              partner1Email: appData.settings.partner1Email || "",
-              partner2Email: appData.settings.partner2Email || "",
               monthlyTarget: appData.settings.monthlyTarget || 10000,
               currency: appData.settings.currency || "RWF",
               accountName: appData.settings.accountName || "Joint Savings Account"
             })
           }).then(() => {
-            // Also sync any transactions/loans if present
             if (appData.transactions && appData.transactions.length > 0) {
               fetch('/api/historical-batch', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-account-code': localCachedCode },
+                headers: { 'Content-Type': 'application/json', 'x-account-code': cleanVal },
                 body: JSON.stringify({ entries: appData.transactions })
               }).catch(() => {});
             }
@@ -1472,15 +1418,15 @@
       } catch (err) {
         // Offline / cached account login
         if (hasLocalCache) {
-          currentAccountCode = localCachedCode;
-          localStorage.setItem('duo_account_code', localCachedCode);
+          currentAccountCode = cleanVal;
+          localStorage.setItem('duo_account_code', cleanVal);
           updateCodeBadges();
           hideAuthModal();
           loadFromLocalStorage();
           recomputeClientSummary();
           renderAll();
           updateOnlineStatus(false);
-          showToast(`Offline mode: Account ${localCachedCode} loaded`, '⚡');
+          showToast(`Offline mode: Account ${cleanVal} loaded`, '⚡');
         } else {
           if (errEl) {
             errEl.textContent = 'Device is offline and no cached account was found. Please check your internet connection.';
@@ -1499,8 +1445,6 @@
       e.preventDefault();
       const p1 = document.getElementById('createP1Name')?.value.trim() || 'Partner 1';
       const p2 = document.getElementById('createP2Name')?.value.trim() || 'Partner 2';
-      const p1Email = (document.getElementById('createP1Email')?.value || '').trim().toLowerCase();
-      const p2Email = (document.getElementById('createP2Email')?.value || '').trim().toLowerCase();
       let code = document.getElementById('createCodeInput')?.value.trim();
       if (!code) code = String(Math.floor(100000 + Math.random() * 900000));
 
@@ -1532,16 +1476,13 @@
           body: JSON.stringify({
             code,
             partner1Name: p1,
-            partner2Name: p2,
-            partner1Email: p1Email,
-            partner2Email: p2Email
+            partner2Name: p2
           })
         });
         const data = await res.json();
         if (res.ok && data.success) {
           currentAccountCode = data.code || code;
           localStorage.setItem('duo_account_code', currentAccountCode);
-          if (data.emails) appData.emails = data.emails;
           if (data.settings) appData.settings = data.settings;
           updateCodeBadges();
           
@@ -1564,9 +1505,6 @@
         localStorage.setItem('duo_account_code', code);
         appData.settings.partner1Name = p1;
         appData.settings.partner2Name = p2;
-        appData.settings.partner1Email = p1Email;
-        appData.settings.partner2Email = p2Email;
-        appData.emails = [p1Email, p2Email].filter(Boolean);
         appData.transactions = [];
         appData.loans = [];
         saveToLocalStorage();
@@ -1576,8 +1514,6 @@
           data: {
             partner1Name: p1,
             partner2Name: p2,
-            partner1Email: p1Email,
-            partner2Email: p2Email,
             monthlyTarget: 10000,
             currency: "RWF",
             accountName: "Joint Savings Account"
@@ -1589,14 +1525,6 @@
         const successEl = document.getElementById('tabContentSuccess');
         if (successEl) successEl.classList.remove('hidden');
         const disp = document.getElementById('createdCodeDisplay');
-        if (disp) disp.textContent = code;
-      } finally {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = '<span>Create Shared Account ✨</span>';
-        }
-      }
-    }
         if (disp) disp.textContent = code;
       } finally {
         if (submitBtn) {
@@ -1658,7 +1586,6 @@
       const key = 'duo_savings_acc_' + (currentAccountCode || 'default');
       localStorage.setItem(key, JSON.stringify({
         settings: appData.settings,
-        emails: appData.emails || [],
         transactions: appData.transactions,
         loans: appData.loans,
         summary: appData.summary,
@@ -1673,7 +1600,6 @@
         try {
           const parsed = JSON.parse(raw);
           appData.settings = parsed.settings || appData.settings;
-          appData.emails = Array.isArray(parsed.emails) ? parsed.emails : [];
           appData.transactions = parsed.transactions || [];
           appData.loans = parsed.loans || [];
           if (parsed.summary) {
@@ -1700,7 +1626,6 @@
           if (data.success) {
             isConnectedToServer = true;
             appData.settings = data.settings;
-            appData.emails = data.emails || [];
             appData.transactions = data.transactions || [];
             appData.loans = data.loans || [];
             appData.summary = data.summary;
@@ -2962,8 +2887,6 @@
       document.getElementById('settingsAccountCode').textContent = currentAccountCode || '------';
       document.getElementById('settingP1Name').value = appData.settings.partner1Name || "Partner 1";
       document.getElementById('settingP2Name').value = appData.settings.partner2Name || "Partner 2";
-      document.getElementById('settingP1Email').value = appData.settings.partner1Email || (appData.emails && appData.emails[0]) || '';
-      document.getElementById('settingP2Email').value = appData.settings.partner2Email || (appData.emails && appData.emails[1]) || '';
       document.getElementById('settingMonthlyTarget').value = appData.settings.monthlyTarget || 10000;
       document.getElementById('settingCurrency').value = appData.settings.currency || "RWF";
       document.getElementById('settingsModal').classList.remove('hidden');
@@ -2977,16 +2900,12 @@
       e.preventDefault();
       const p1 = document.getElementById('settingP1Name').value.trim();
       const p2 = document.getElementById('settingP2Name').value.trim();
-      const p1Email = (document.getElementById('settingP1Email')?.value || '').trim().toLowerCase();
-      const p2Email = (document.getElementById('settingP2Email')?.value || '').trim().toLowerCase();
       const target = Number(document.getElementById('settingMonthlyTarget').value) || 10000;
       const currency = document.getElementById('settingCurrency').value.trim() || "RWF";
 
       const updated = {
         partner1Name: p1,
         partner2Name: p2,
-        partner1Email: p1Email,
-        partner2Email: p2Email,
         monthlyTarget: target,
         currency: currency
       };
@@ -3000,10 +2919,9 @@
           });
           const resData = await res.json().catch(() => ({}));
           if (res.ok && resData.success) {
-            if (resData.emails) appData.emails = resData.emails;
             if (resData.settings) appData.settings = resData.settings;
             closeSettingsModal();
-            showToast("Settings and emails updated successfully!");
+            showToast("Settings updated successfully!");
             await fetchAppData();
             return;
           } else {
@@ -3017,7 +2935,6 @@
 
       // Offline
       appData.settings = { ...appData.settings, ...updated };
-      appData.emails = [p1Email, p2Email].filter(Boolean);
       saveToLocalStorage();
       queueOfflineAction({
         type: 'settings',
