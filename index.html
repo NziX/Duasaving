@@ -1158,7 +1158,7 @@
       if (el) el.value = code;
     }
 
-    // Unified API Fetch with Offline Detection & 6-Digit Account Code Header
+    // Unified API Fetch with Offline Detection & 6-Digit Account Code in Header and Query String
     async function apiFetch(url, options = {}) {
       if (!navigator.onLine) {
         updateOnlineStatus();
@@ -1172,9 +1172,17 @@
         options.headers['Content-Type'] = 'application/json';
         options.body = JSON.stringify(options.body);
       }
+
+      // Append code query parameter so URL carries it reliably across all proxies/browsers
+      let finalUrl = url;
+      if (currentAccountCode) {
+        const sep = url.includes('?') ? '&' : '?';
+        finalUrl = `${url}${sep}code=${encodeURIComponent(currentAccountCode)}`;
+      }
+
       try {
-        const res = await fetch(url, options);
-        if (res.status === 401) {
+        const res = await fetch(finalUrl, options);
+        if (res.status === 401 && !currentAccountCode) {
           showAuthModal('login');
         }
         updateOnlineStatus(true);
@@ -1406,10 +1414,15 @@
           localStorage.setItem('duo_account_code', resolvedCode);
           if (data.emails) appData.emails = data.emails;
           if (data.settings) appData.settings = data.settings;
+          if (data.summary) appData.summary = data.summary;
+          saveToLocalStorage();
+          renderAll();
           updateCodeBadges();
           hideAuthModal();
-          await fetchAppData();
           showToast(`Connected to joint account ${resolvedCode}!`, '🎉');
+
+          // Fetch fresh full transaction history in background
+          fetchAppData().catch(() => {});
           return;
         }
 

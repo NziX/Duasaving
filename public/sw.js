@@ -1,5 +1,5 @@
 // DuoSave Advanced Service Worker for 100% Offline PWA Support
-const CACHE_NAME = 'duosave-cache-v4';
+const CACHE_NAME = 'duosave-cache-v5';
 
 const STATIC_ASSETS = [
   '/',
