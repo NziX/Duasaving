@@ -1339,12 +1339,15 @@
     async function handleLoginSubmit(e) {
       e.preventDefault();
       const codeInput = document.getElementById('loginCodeInput');
-      const inputVal = (codeInput?.value || '').trim();
+      const rawInput = (codeInput?.value || '').trim();
       const errEl = document.getElementById('loginErrorMsg');
       if (errEl) errEl.classList.add('hidden');
 
-      const is6Digit = /^\d{6}$/.test(inputVal);
-      const isEmailVal = inputVal.includes('@') && inputVal.length >= 5;
+      // Normalize input: trim and strip any accidental spaces or dashes in 6-digit codes
+      const cleanVal = rawInput.includes('@') ? rawInput.toLowerCase() : rawInput.replace(/[\s-]+/g, '');
+
+      const is6Digit = /^\d{6}$/.test(cleanVal);
+      const isEmailVal = cleanVal.includes('@') && cleanVal.length >= 5;
 
       if (!is6Digit && !isEmailVal) {
         if (errEl) {
@@ -1360,6 +1363,31 @@
         submitBtn.textContent = 'Connecting...';
       }
 
+      // Check if this account is already cached on this device's localStorage
+      let localCachedCode = is6Digit ? cleanVal : null;
+      if (!localCachedCode && isEmailVal) {
+        const targetEmail = cleanVal.toLowerCase();
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('duo_savings_acc_')) {
+            try {
+              const parsed = JSON.parse(localStorage.getItem(k));
+              const emails = Array.isArray(parsed.emails) ? [...parsed.emails] : [];
+              if (parsed.settings) {
+                if (parsed.settings.partner1Email) emails.push(parsed.settings.partner1Email);
+                if (parsed.settings.partner2Email) emails.push(parsed.settings.partner2Email);
+              }
+              if (emails.map(e => String(e).toLowerCase()).includes(targetEmail)) {
+                localCachedCode = k.replace('duo_savings_acc_', '');
+                break;
+              }
+            } catch (e) {}
+          }
+        }
+      }
+
+      const hasLocalCache = localCachedCode && localStorage.getItem('duo_savings_acc_' + localCachedCode);
+
       try {
         if (!navigator.onLine) {
           throw new Error("Offline");
@@ -1368,11 +1396,12 @@
         const res = await fetch('/api/account/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: inputVal })
+          body: JSON.stringify({ code: cleanVal })
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+
         if (res.ok && data.success) {
-          const resolvedCode = data.code || inputVal;
+          const resolvedCode = data.code || cleanVal;
           currentAccountCode = resolvedCode;
           localStorage.setItem('duo_account_code', resolvedCode);
           if (data.emails) appData.emails = data.emails;
@@ -1382,50 +1411,66 @@
           await fetchAppData();
           showToast(`Connected to joint account ${resolvedCode}!`, '🎉');
           return;
-        } else {
-          if (errEl) {
-            errEl.textContent = data.error || 'Account not found. Please check with your partner or create a new account.';
-            errEl.classList.remove('hidden');
-          }
+        }
+
+        // If not found on server but exists in this device's localStorage, restore it!
+        if (hasLocalCache) {
+          console.warn("Account not on server, restoring from device storage:", localCachedCode);
+          currentAccountCode = localCachedCode;
+          localStorage.setItem('duo_account_code', localCachedCode);
+          updateCodeBadges();
+          hideAuthModal();
+          loadFromLocalStorage();
+          recomputeClientSummary();
+          renderAll();
+          showToast(`Account ${localCachedCode} restored from your device!`, '📱');
+
+          // Auto-restore account to the server in the background
+          fetch('/api/account/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: localCachedCode,
+              partner1Name: appData.settings.partner1Name || "Partner 1",
+              partner2Name: appData.settings.partner2Name || "Partner 2",
+              partner1Email: appData.settings.partner1Email || "",
+              partner2Email: appData.settings.partner2Email || "",
+              monthlyTarget: appData.settings.monthlyTarget || 10000,
+              currency: appData.settings.currency || "RWF",
+              accountName: appData.settings.accountName || "Joint Savings Account"
+            })
+          }).then(() => {
+            // Also sync any transactions/loans if present
+            if (appData.transactions && appData.transactions.length > 0) {
+              fetch('/api/historical-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-account-code': localCachedCode },
+                body: JSON.stringify({ entries: appData.transactions })
+              }).catch(() => {});
+            }
+          }).catch(() => {});
+          return;
+        }
+
+        if (errEl) {
+          errEl.textContent = data.error || 'Account not found. Please check with your partner or create a new account.';
+          errEl.classList.remove('hidden');
         }
       } catch (err) {
         // Offline / cached account login
-        let resolvedCode = is6Digit ? inputVal : null;
-        if (!resolvedCode) {
-          // Try to find cached account with matching email
-          const targetEmail = inputVal.toLowerCase();
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith('duo_savings_acc_')) {
-              try {
-                const parsed = JSON.parse(localStorage.getItem(k));
-                const emails = Array.isArray(parsed.emails) ? [...parsed.emails] : [];
-                if (parsed.settings) {
-                  if (parsed.settings.partner1Email) emails.push(parsed.settings.partner1Email);
-                  if (parsed.settings.partner2Email) emails.push(parsed.settings.partner2Email);
-                }
-                if (emails.map(e => String(e).toLowerCase()).includes(targetEmail)) {
-                  resolvedCode = k.replace('duo_savings_acc_', '');
-                  break;
-                }
-              } catch (e) {}
-            }
-          }
-        }
-
-        if (resolvedCode && /^\d{6}$/.test(resolvedCode)) {
-          currentAccountCode = resolvedCode;
-          localStorage.setItem('duo_account_code', resolvedCode);
+        if (hasLocalCache) {
+          currentAccountCode = localCachedCode;
+          localStorage.setItem('duo_account_code', localCachedCode);
           updateCodeBadges();
           hideAuthModal();
           loadFromLocalStorage();
           recomputeClientSummary();
           renderAll();
           updateOnlineStatus(false);
-          showToast(`Offline mode: Account ${resolvedCode} loaded`, '⚡');
+          showToast(`Offline mode: Account ${localCachedCode} loaded`, '⚡');
         } else {
           if (errEl) {
-            errEl.textContent = 'Device is offline and no cached account was found for this email. Please enter your 6-digit code.';
+            errEl.textContent = 'Device is offline and no cached account was found. Please check your internet connection.';
             errEl.classList.remove('hidden');
           }
         }

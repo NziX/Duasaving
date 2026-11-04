@@ -70,6 +70,32 @@ async function readEmailMapping(email) {
     }
   }
 
+  // Local filesystem scan fallback
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const accDir = path.join(__dirname, '..', 'data', 'accounts');
+    if (fs.existsSync(accDir)) {
+      const files = fs.readdirSync(accDir);
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const accCode = file.replace('.json', '');
+          const raw = fs.readFileSync(path.join(accDir, file), 'utf-8');
+          const acc = JSON.parse(raw);
+          const accEmails = Array.isArray(acc.emails) ? acc.emails.map(normalizeEmail) : [];
+          if (acc.settings) {
+            if (acc.settings.partner1Email) accEmails.push(normalizeEmail(acc.settings.partner1Email));
+            if (acc.settings.partner2Email) accEmails.push(normalizeEmail(acc.settings.partner2Email));
+          }
+          if (accEmails.includes(normalized)) {
+            global._inMemoryEmailMap[normalized] = accCode;
+            return accCode;
+          }
+        }
+      }
+    }
+  } catch (err) {}
+
   // Memory fallback
   return global._inMemoryEmailMap[normalized] || null;
 }
@@ -243,8 +269,15 @@ async function readAccountData(code) {
       });
       if (res.ok) {
         const json = await res.json();
-        if (json && json.result) {
-          const parsed = typeof json.result === 'string' ? JSON.parse(json.result) : json.result;
+        if (json && json.result !== undefined && json.result !== null) {
+          let parsed = json.result;
+          while (typeof parsed === 'string') {
+            try {
+              parsed = JSON.parse(parsed);
+            } catch (e) {
+              break;
+            }
+          }
           if (parsed && typeof parsed === 'object') {
             parsed.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings || {});
             parsed.emails = Array.isArray(parsed.emails) ? parsed.emails : [];
@@ -258,6 +291,29 @@ async function readAccountData(code) {
     } catch (err) {
       console.error("KV read error:", err);
     }
+  }
+
+  // Local filesystem fallback (if running locally or repository files)
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.join(__dirname, '..', 'data', 'accounts', `${code}.json`);
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      let parsed = JSON.parse(raw);
+      while (typeof parsed === 'string') {
+        try { parsed = JSON.parse(parsed); } catch (e) { break; }
+      }
+      if (parsed && typeof parsed === 'object') {
+        parsed.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings || {});
+        parsed.emails = Array.isArray(parsed.emails) ? parsed.emails : [];
+        parsed.transactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+        parsed.loans = Array.isArray(parsed.loans) ? parsed.loans : [];
+        return parsed;
+      }
+    }
+  } catch (err) {
+    // Ignore local read errors on serverless
   }
 
   const mem = global._inMemoryAccounts[code];
@@ -288,7 +344,7 @@ async function saveAccountData(code, data) {
 
   if (kvUrl && kvToken) {
     try {
-      const payload = typeof data === 'string' ? data : JSON.stringify(data);
+      const payload = JSON.stringify(data);
       await fetch(`${kvUrl}/set/duosave_acc_${code}`, {
         method: 'POST',
         headers: {
@@ -297,10 +353,20 @@ async function saveAccountData(code, data) {
         },
         body: JSON.stringify(payload)
       });
-      return true;
     } catch (err) {
       console.error("KV write error:", err);
     }
+  }
+
+  // Local file fallback
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const accDir = path.join(__dirname, '..', 'data', 'accounts');
+    if (!fs.existsSync(accDir)) fs.mkdirSync(accDir, { recursive: true });
+    fs.writeFileSync(path.join(accDir, `${code}.json`), JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    // Ignore local write errors on serverless
   }
 
   return true;
