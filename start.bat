@@ -1,4 +1,4 @@
 @echo off
 echo Starting DuoSave Local Server...
-node local-server.js
+node server.js
 pause

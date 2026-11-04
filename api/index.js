@@ -8,10 +8,119 @@ function uuid() {
 const DEFAULT_SETTINGS = {
   partner1Name: "Partner 1",
   partner2Name: "Partner 2",
+  partner1Email: "",
+  partner2Email: "",
   monthlyTarget: 10000,
   currency: "RWF",
   accountName: "Joint Savings Account"
 };
+
+// Global in-memory email map cache
+global._inMemoryEmailMap = global._inMemoryEmailMap || {};
+
+function normalizeEmail(email) {
+  return (email || '').trim().toLowerCase();
+}
+
+function isEmail(str) {
+  return typeof str === 'string' && str.includes('@');
+}
+
+function collectEmails(body) {
+  const emails = [];
+  if (body.partner1Email && typeof body.partner1Email === 'string') {
+    const e = normalizeEmail(body.partner1Email);
+    if (e && isEmail(e)) emails.push(e);
+  }
+  if (body.partner2Email && typeof body.partner2Email === 'string') {
+    const e = normalizeEmail(body.partner2Email);
+    if (e && isEmail(e) && !emails.includes(e)) emails.push(e);
+  }
+  return emails;
+}
+
+// Read email→code mapping (Redis → memory)
+async function readEmailMapping(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (kvUrl && kvToken) {
+    try {
+      const res = await fetch(`${kvUrl}/get/duosave_email_${normalized}`, {
+        headers: { Authorization: `Bearer ${kvToken}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.result !== undefined && json.result !== null) {
+          let code = json.result;
+          while (typeof code === 'string') {
+            try { const p = JSON.parse(code); code = p; } catch (e) { break; }
+          }
+          if (typeof code === 'string' && /^\d{6}$/.test(code)) {
+            global._inMemoryEmailMap[normalized] = code;
+            return code;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("KV email mapping read error:", err);
+    }
+  }
+
+  // Memory fallback
+  return global._inMemoryEmailMap[normalized] || null;
+}
+
+// Save email→code mapping (Redis + memory)
+async function saveEmailMapping(email, code) {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !code) return;
+
+  global._inMemoryEmailMap[normalized] = code;
+
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (kvUrl && kvToken) {
+    try {
+      await fetch(`${kvUrl}/set/duosave_email_${normalized}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${kvToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(code)
+      });
+    } catch (err) {
+      console.error("KV email mapping write error:", err);
+    }
+  }
+}
+
+// Remove email→code mapping (Redis + memory)
+async function removeEmailMapping(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return;
+
+  delete global._inMemoryEmailMap[normalized];
+
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (kvUrl && kvToken) {
+    try {
+      await fetch(`${kvUrl}/del/duosave_email_${normalized}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${kvToken}` }
+      });
+    } catch (err) {
+      console.error("KV email mapping delete error:", err);
+    }
+  }
+}
 
 // Check if date is in the future (>60 seconds)
 function isFutureDate(dateStr) {
@@ -136,8 +245,14 @@ async function readAccountData(code) {
         const json = await res.json();
         if (json && json.result) {
           const parsed = typeof json.result === 'string' ? JSON.parse(json.result) : json.result;
-          global._inMemoryAccounts[code] = parsed;
-          return parsed;
+          if (parsed && typeof parsed === 'object') {
+            parsed.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings || {});
+            parsed.emails = Array.isArray(parsed.emails) ? parsed.emails : [];
+            parsed.transactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+            parsed.loans = Array.isArray(parsed.loans) ? parsed.loans : [];
+            global._inMemoryAccounts[code] = parsed;
+            return parsed;
+          }
         }
       }
     } catch (err) {
@@ -145,12 +260,26 @@ async function readAccountData(code) {
     }
   }
 
-  return global._inMemoryAccounts[code] || null;
+  const mem = global._inMemoryAccounts[code];
+  if (mem && typeof mem === 'object') {
+    mem.settings = Object.assign({}, DEFAULT_SETTINGS, mem.settings || {});
+    mem.emails = Array.isArray(mem.emails) ? mem.emails : [];
+    mem.transactions = Array.isArray(mem.transactions) ? mem.transactions : [];
+    mem.loans = Array.isArray(mem.loans) ? mem.loans : [];
+    return mem;
+  }
+
+  return null;
 }
 
 // Save account data to Upstash Redis and memory
 async function saveAccountData(code, data) {
   if (!code || !/^\d{6}$/.test(code)) return false;
+
+  data.settings = Object.assign({}, DEFAULT_SETTINGS, data.settings || {});
+  data.emails = Array.isArray(data.emails) ? data.emails : [];
+  data.transactions = Array.isArray(data.transactions) ? data.transactions : [];
+  data.loans = Array.isArray(data.loans) ? data.loans : [];
 
   global._inMemoryAccounts[code] = data;
 
@@ -265,45 +394,82 @@ module.exports = async function handler(req, res) {
       const accName = (body.accountName && typeof body.accountName === 'string') ? body.accountName.trim() : "Joint Savings Account";
       const curr = (body.currency && typeof body.currency === 'string') ? body.currency.trim() : "RWF";
 
+      // Collect optional emails
+      const emails = collectEmails(body);
+
+      // Verify none of the emails are already claimed by an existing account
+      for (const email of emails) {
+        const mapped = await readEmailMapping(email);
+        if (mapped) {
+          return sendJson(res, 400, { success: false, error: `Email "${email}" is already linked to joint account code ${mapped}. Please log in instead.` });
+        }
+      }
+
       const newAccount = {
         code: targetCode,
         createdAt: new Date().toISOString(),
         settings: {
           partner1Name: p1 || "Partner 1",
           partner2Name: p2 || "Partner 2",
+          partner1Email: body.partner1Email ? normalizeEmail(body.partner1Email) : "",
+          partner2Email: body.partner2Email ? normalizeEmail(body.partner2Email) : "",
           monthlyTarget: Number(body.monthlyTarget) || 10000,
           currency: curr || "RWF",
           accountName: accName || "Joint Savings Account"
         },
+        emails: emails,
         transactions: [],
         loans: []
       };
 
       await saveAccountData(targetCode, newAccount);
+
+      // Save email→code mappings
+      for (const email of emails) {
+        await saveEmailMapping(email, targetCode);
+      }
+
       return sendJson(res, 201, {
         success: true,
         code: targetCode,
         settings: newAccount.settings,
+        emails: newAccount.emails,
         summary: computeSummary(newAccount)
       });
     }
 
     // 2. LOGIN / VERIFY ACCOUNT: POST /api/account/login
     if (req.method === 'POST' && pathname === '/api/account/login') {
-      const loginCode = String(body.code || code || '').trim();
-      if (!loginCode || !/^\d{6}$/.test(loginCode)) {
-        return sendJson(res, 400, { success: false, error: "Please enter a valid 6-digit login code." });
+      const loginInput = String(body.code || body.email || body.loginInput || code || '').trim();
+      if (!loginInput) {
+        return sendJson(res, 400, { success: false, error: "Please enter your 6-digit account code or email address." });
       }
 
-      const account = await readAccountData(loginCode);
+      let targetCode = null;
+      if (/^\d{6}$/.test(loginInput)) {
+        targetCode = loginInput;
+      } else if (isEmail(loginInput)) {
+        targetCode = await readEmailMapping(loginInput);
+        if (!targetCode) {
+          return sendJson(res, 404, {
+            success: false,
+            error: `No joint account found linked to email "${loginInput}". Please verify your email or connect using your 6-digit code.`
+          });
+        }
+      } else {
+        return sendJson(res, 400, { success: false, error: "Please enter a valid 6-digit code or email address." });
+      }
+
+      const account = await readAccountData(targetCode);
       if (!account) {
-        return sendJson(res, 404, { success: false, error: `Account code "${loginCode}" was not found. Please check with your partner or create a new account.` });
+        return sendJson(res, 404, { success: false, error: `Account code "${targetCode}" was not found. Please check with your partner or create a new account.` });
       }
 
       return sendJson(res, 200, {
         success: true,
-        code: loginCode,
+        code: targetCode,
         settings: account.settings || DEFAULT_SETTINGS,
+        emails: account.emails || [],
         summary: computeSummary(account)
       });
     }
@@ -330,6 +496,7 @@ module.exports = async function handler(req, res) {
         success: true,
         code,
         settings: db.settings,
+        emails: db.emails || [],
         summary,
         loans: db.loans,
         transactions: db.transactions.sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -520,17 +687,52 @@ module.exports = async function handler(req, res) {
       const accName = (body.accountName && typeof body.accountName === 'string') ? body.accountName.trim() : db.settings.accountName;
       const curr = (body.currency && typeof body.currency === 'string') ? body.currency.trim() : db.settings.currency;
 
+      // Partner emails
+      const p1Email = body.partner1Email !== undefined ? normalizeEmail(body.partner1Email) : (db.settings.partner1Email || '');
+      const p2Email = body.partner2Email !== undefined ? normalizeEmail(body.partner2Email) : (db.settings.partner2Email || '');
+
+      // Verify newly supplied emails are not linked to another account
+      for (const em of [p1Email, p2Email]) {
+        if (em && isEmail(em)) {
+          const existingCode = await readEmailMapping(em);
+          if (existingCode && existingCode !== code) {
+            return sendJson(res, 400, { success: false, error: `Email "${em}" is already linked to another joint account (${existingCode}).` });
+          }
+        }
+      }
+
+      // Compute new email list
+      const newEmails = [];
+      if (p1Email && isEmail(p1Email)) newEmails.push(p1Email);
+      if (p2Email && isEmail(p2Email) && !newEmails.includes(p2Email)) newEmails.push(p2Email);
+
+      // Unlink old emails that are removed
+      const oldEmails = Array.isArray(db.emails) ? db.emails : [];
+      for (const oldEmail of oldEmails) {
+        if (!newEmails.includes(oldEmail)) {
+          await removeEmailMapping(oldEmail);
+        }
+      }
+
+      // Link new emails
+      for (const newEmail of newEmails) {
+        await saveEmailMapping(newEmail, code);
+      }
+
+      db.emails = newEmails;
       db.settings = {
         ...db.settings,
         partner1Name: p1 || db.settings.partner1Name,
         partner2Name: p2 || db.settings.partner2Name,
+        partner1Email: p1Email,
+        partner2Email: p2Email,
         monthlyTarget: Number(body.monthlyTarget) || db.settings.monthlyTarget || 10000,
         currency: curr || db.settings.currency || "RWF",
         accountName: accName || db.settings.accountName || "Joint Savings Account"
       };
 
       await saveAccountData(code, db);
-      return sendJson(res, 200, { success: true, settings: db.settings, summary: computeSummary(db) });
+      return sendJson(res, 200, { success: true, settings: db.settings, emails: db.emails, summary: computeSummary(db) });
     }
 
     return sendJson(res, 404, { error: "Route not found" });
