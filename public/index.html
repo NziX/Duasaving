@@ -61,6 +61,13 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
 
+  <!-- OFFLINE STATUS BANNER -->
+  <div id="offlineBanner" class="hidden bg-amber-500 text-white text-xs font-semibold py-2 px-4 text-center flex items-center justify-center space-x-2 transition-all shadow-xs z-50">
+    <svg class="w-4 h-4 text-amber-100 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.166a1 1 0 111.414 1.414M3 3l18 18"></path></svg>
+    <span id="offlineBannerText">⚡ Offline Mode: Working without internet. Changes are saved on your phone and will auto-sync when online.</span>
+    <button id="offlineSyncBtn" onclick="syncOfflineQueue()" class="hidden ml-2 px-2.5 py-0.5 bg-amber-600 hover:bg-amber-700 rounded-md text-white text-[11px] font-bold shadow-xs transition">Sync Now</button>
+  </div>
+
   <!-- TOP NAVIGATION & REAL-TIME CLOCK -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
@@ -88,6 +95,12 @@
 
       <!-- Real-Time Calendar Clock & Live Indicator -->
       <div class="flex items-center gap-3">
+        <!-- Online / Sync Status Badge -->
+        <div id="networkStatusBadge" class="hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 shadow-xs">
+          <span id="networkStatusDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span id="networkStatusText">Online</span>
+        </div>
+
         <div class="flex items-center bg-slate-100/80 px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-inner">
           <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-ring mr-2.5"></div>
           <div class="text-right">
@@ -1122,8 +1135,12 @@
       if (el) el.value = code;
     }
 
-    // Unified API Fetch with 6-Digit Account Code Header
+    // Unified API Fetch with Offline Detection & 6-Digit Account Code Header
     async function apiFetch(url, options = {}) {
+      if (!navigator.onLine) {
+        updateOnlineStatus();
+        throw new Error("Device is currently offline");
+      }
       options.headers = options.headers || {};
       if (currentAccountCode) {
         options.headers['x-account-code'] = currentAccountCode;
@@ -1132,11 +1149,168 @@
         options.headers['Content-Type'] = 'application/json';
         options.body = JSON.stringify(options.body);
       }
-      const res = await fetch(url, options);
-      if (res.status === 401) {
-        showAuthModal('login');
+      try {
+        const res = await fetch(url, options);
+        if (res.status === 401) {
+          showAuthModal('login');
+        }
+        updateOnlineStatus(true);
+        return res;
+      } catch (err) {
+        updateOnlineStatus(false);
+        throw err;
       }
-      return res;
+    }
+
+    // ================= OFFLINE QUEUE & SYNC SYSTEM =================
+    function getOfflineQueue() {
+      try {
+        const raw = localStorage.getItem('duo_offline_queue_' + (currentAccountCode || 'default'));
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveOfflineQueue(queue) {
+      try {
+        localStorage.setItem('duo_offline_queue_' + (currentAccountCode || 'default'), JSON.stringify(queue));
+      } catch (e) {}
+      updateOfflineBanner();
+    }
+
+    function queueOfflineAction(action) {
+      const queue = getOfflineQueue();
+      queue.push({
+        id: 'act_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        timestamp: new Date().toISOString(),
+        ...action
+      });
+      saveOfflineQueue(queue);
+    }
+
+    function updateOfflineBanner() {
+      const banner = document.getElementById('offlineBanner');
+      const textEl = document.getElementById('offlineBannerText');
+      const syncBtn = document.getElementById('offlineSyncBtn');
+      const queue = getOfflineQueue();
+      const isOnline = navigator.onLine;
+
+      if (!banner) return;
+
+      if (!isOnline) {
+        banner.classList.remove('hidden');
+        if (textEl) {
+          textEl.textContent = queue.length > 0
+            ? `⚡ Offline Mode: Working without internet. ${queue.length} change${queue.length > 1 ? 's' : ''} saved on phone and will auto-sync when online.`
+            : `⚡ Offline Mode: Working without internet. Everything is saved locally on your phone.`;
+        }
+        if (syncBtn) syncBtn.classList.add('hidden');
+      } else if (queue.length > 0) {
+        banner.classList.remove('hidden');
+        if (textEl) {
+          textEl.textContent = `🔄 Online: ${queue.length} offline change${queue.length > 1 ? 's' : ''} pending sync with shared account.`;
+        }
+        if (syncBtn) syncBtn.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    function updateOnlineStatus(forceOnline = null) {
+      const isOnline = forceOnline !== null ? forceOnline : navigator.onLine;
+      isConnectedToServer = isOnline;
+
+      const badge = document.getElementById('networkStatusBadge');
+      const dot = document.getElementById('networkStatusDot');
+      const text = document.getElementById('networkStatusText');
+      const queue = getOfflineQueue();
+
+      if (badge && dot && text) {
+        badge.classList.remove('hidden');
+        if (isOnline) {
+          badge.className = 'hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 shadow-xs';
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          text.textContent = queue.length > 0 ? `Syncing (${queue.length})...` : 'Online';
+        } else {
+          badge.className = 'hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl bg-amber-50 text-amber-700 font-semibold border border-amber-200 shadow-xs';
+          dot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+          text.textContent = 'Offline';
+        }
+      }
+
+      updateOfflineBanner();
+    }
+
+    let isSyncingQueue = false;
+    async function syncOfflineQueue() {
+      if (isSyncingQueue || !navigator.onLine || !currentAccountCode) return;
+      const queue = getOfflineQueue();
+      if (queue.length === 0) {
+        updateOfflineBanner();
+        return;
+      }
+
+      isSyncingQueue = true;
+      showToast(`Syncing ${queue.length} offline change(s)...`, "🔄");
+
+      const remainingQueue = [];
+
+      for (const item of queue) {
+        try {
+          let res;
+          if (item.type === 'deposit') {
+            res = await fetch('/api/deposit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-account-code': currentAccountCode },
+              body: JSON.stringify(item.data)
+            });
+          } else if (item.type === 'loan') {
+            res = await fetch('/api/loan', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-account-code': currentAccountCode },
+              body: JSON.stringify(item.data)
+            });
+          } else if (item.type === 'repay') {
+            res = await fetch('/api/loan/repay', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-account-code': currentAccountCode },
+              body: JSON.stringify(item.data)
+            });
+          } else if (item.type === 'deleteTx') {
+            res = await fetch(`/api/transaction/${item.data.id}`, {
+              method: 'DELETE',
+              headers: { 'x-account-code': currentAccountCode }
+            });
+          } else if (item.type === 'settings') {
+            res = await fetch('/api/settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'x-account-code': currentAccountCode },
+              body: JSON.stringify(item.data)
+            });
+          }
+
+          if (!res || !res.ok) {
+            if (res && res.status >= 400 && res.status < 500) {
+              console.warn("Discarding invalid or obsolete offline action:", item);
+            } else {
+              remainingQueue.push(item);
+            }
+          }
+        } catch (err) {
+          remainingQueue.push(item);
+          break; // Still offline, stop sync loop
+        }
+      }
+
+      saveOfflineQueue(remainingQueue);
+      isSyncingQueue = false;
+
+      if (remainingQueue.length === 0) {
+        showToast("All offline changes synced with partner!", "✅");
+        await fetchAppData();
+      }
+      updateOnlineStatus();
     }
 
     async function handleLoginSubmit(e) {
@@ -1160,7 +1334,15 @@
         submitBtn.textContent = 'Connecting...';
       }
 
+      // Check if already cached locally for instant offline entry
+      const localAccountKey = 'duo_savings_acc_' + code;
+      const cachedAccount = localStorage.getItem(localAccountKey);
+
       try {
+        if (!navigator.onLine) {
+          throw new Error("Offline");
+        }
+
         const res = await fetch('/api/account/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1182,7 +1364,7 @@
           }
         }
       } catch (err) {
-        // Standalone/offline fallback
+        // Offline / cached account login
         currentAccountCode = code;
         localStorage.setItem('duo_account_code', code);
         updateCodeBadges();
@@ -1190,7 +1372,8 @@
         loadFromLocalStorage();
         recomputeClientSummary();
         renderAll();
-        showToast(`Offline mode: Account ${code}`, '📱');
+        updateOnlineStatus(false);
+        showToast(`Offline mode: Account ${code} loaded`, '⚡');
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -1224,6 +1407,10 @@
       }
 
       try {
+        if (!navigator.onLine) {
+          throw new Error("Offline");
+        }
+
         const res = await fetch('/api/account/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1249,7 +1436,7 @@
           }
         }
       } catch (err) {
-        // Offline mode fallback
+        // Offline mode creation
         currentAccountCode = code;
         localStorage.setItem('duo_account_code', code);
         appData.settings.partner1Name = p1;
@@ -1258,6 +1445,10 @@
         appData.loans = [];
         saveToLocalStorage();
         updateCodeBadges();
+        queueOfflineAction({
+          type: 'settings',
+          data: { partner1Name: p1, partner2Name: p2, monthlyTarget: 10000, currency: "RWF", accountName: "Joint Savings Account" }
+        });
 
         document.getElementById('tabContentCreate')?.classList.add('hidden');
         document.getElementById('tabContentLogin')?.classList.add('hidden');
@@ -1275,6 +1466,9 @@
 
     function finishAccountCreation() {
       hideAuthModal();
+      loadFromLocalStorage();
+      recomputeClientSummary();
+      renderAll();
       fetchAppData();
       showToast(`Account ${currentAccountCode} ready!`, '🚀');
     }
@@ -1323,7 +1517,9 @@
       localStorage.setItem(key, JSON.stringify({
         settings: appData.settings,
         transactions: appData.transactions,
-        loans: appData.loans
+        loans: appData.loans,
+        summary: appData.summary,
+        lastSaved: new Date().toISOString()
       }));
     }
 
@@ -1336,6 +1532,9 @@
           appData.settings = parsed.settings || appData.settings;
           appData.transactions = parsed.transactions || [];
           appData.loans = parsed.loans || [];
+          if (parsed.summary) {
+            appData.summary = parsed.summary;
+          }
         } catch(e) {
           console.error(e);
         }
@@ -1360,19 +1559,23 @@
             appData.transactions = data.transactions || [];
             appData.loans = data.loans || [];
             appData.summary = data.summary;
+            saveToLocalStorage(); // ALWAYS cache latest server copy locally!
             renderAll();
+            updateOnlineStatus(true);
+            syncOfflineQueue(); // Sync any pending offline changes
             return;
           }
         }
       } catch (err) {
-        console.log('Backend not detected, using client-side persistent storage');
+        console.log('Backend not reachable, operating in offline mode with client storage');
       }
 
-      // Fallback
+      // Offline Fallback
       isConnectedToServer = false;
       loadFromLocalStorage();
       recomputeClientSummary();
       renderAll();
+      updateOnlineStatus(false);
     }
 
     // Client-side Summary calculation (when offline)
@@ -2355,9 +2558,13 @@
 
       appData.transactions.push(newTx);
       saveToLocalStorage();
+      queueOfflineAction({
+        type: 'deposit',
+        data: { partner, amount, monthKey, date: fullDate, note: newTx.note }
+      });
       recomputeClientSummary();
       closeDepositModal();
-      showToast(`Deposit of ${fmtCur(amount)} recorded for ${pName}!`);
+      showToast(`Saved offline! Deposit of ${fmtCur(amount)} recorded for ${pName}`, '⚡');
       renderAll();
     }
 
@@ -2446,9 +2653,13 @@
       appData.loans.push(loanObj);
       appData.transactions.push(newTx);
       saveToLocalStorage();
+      queueOfflineAction({
+        type: 'loan',
+        data: { partner, amount, reason, date: fullDate, dueDate }
+      });
       recomputeClientSummary();
       closeLoanModal();
-      showToast(`Loan of ${fmtCur(amount)} recorded for ${pName}!`, '⚠️');
+      showToast(`Saved offline! Loan of ${fmtCur(amount)} recorded for ${pName}`, '⚡');
       renderAll();
     }
 
@@ -2558,9 +2769,13 @@
 
       appData.transactions.push(newTx);
       saveToLocalStorage();
+      queueOfflineAction({
+        type: 'repay',
+        data: { loanId: loan.id, amount: actualRepay, date: fullDate, note: newTx.note }
+      });
       recomputeClientSummary();
       closeRepayModal();
-      showToast(`Repayment of ${fmtCur(actualRepay)} recorded!`, '🎉');
+      showToast(`Saved offline! Repayment of ${fmtCur(actualRepay)} recorded`, '⚡');
       renderAll();
     }
 
@@ -2588,8 +2803,12 @@
       }
       appData.transactions = appData.transactions.filter(t => t.id !== txId);
       saveToLocalStorage();
+      queueOfflineAction({
+        type: 'deleteTx',
+        data: { id: txId }
+      });
       recomputeClientSummary();
-      showToast("Transaction deleted");
+      showToast("Transaction deleted (offline)", '⚡');
       renderAll();
     }
 
@@ -2642,9 +2861,13 @@
       // Offline
       appData.settings = { ...appData.settings, ...updated };
       saveToLocalStorage();
+      queueOfflineAction({
+        type: 'settings',
+        data: updated
+      });
       recomputeClientSummary();
       closeSettingsModal();
-      showToast("Settings updated!");
+      showToast("Settings updated (saved on phone)", '⚡');
       renderAll();
     }
 
@@ -2716,16 +2939,39 @@
       syncMonthPickerWithCalendar();
       updateCodeBadges();
 
+      // Listen for online/offline events
+      window.addEventListener('online', () => {
+        updateOnlineStatus(true);
+        syncOfflineQueue();
+      });
+      window.addEventListener('offline', () => {
+        updateOnlineStatus(false);
+      });
+      updateOnlineStatus();
+
       if (currentAccountCode) {
+        // 1. Immediately render cached data from phone storage (zero delay offline!)
+        loadFromLocalStorage();
+        recomputeClientSummary();
+        renderAll();
         hideAuthModal();
-        fetchAppData();
+
+        // 2. Background sync / fetch latest state if online
+        if (navigator.onLine) {
+          fetchAppData();
+        }
       } else {
         showAuthModal('login');
       }
 
-      // Register PWA Service Worker
+      // Register PWA Service Worker for 100% Offline Caching
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration error:', err));
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+          .then((reg) => {
+            console.log('[SW] Registered successfully:', reg.scope);
+            reg.update().catch(() => {});
+          })
+          .catch(err => console.log('[SW] Registration error:', err));
       }
     });
   </script>
